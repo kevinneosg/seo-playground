@@ -78,6 +78,7 @@ export default async function RankTrackerPage({ searchParams }: { searchParams: 
 
           {allKeywords.length > 0 && creds && (
             <form action={checkAllAction}>
+              <input type="hidden" name="domain" value={activeDomain ?? ''} />
               <PendingButton
                 type="submit"
                 className="px-5 py-3 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-700 transition-all shadow-xl shadow-slate-200 dark:shadow-none"

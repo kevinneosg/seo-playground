@@ -45,18 +45,24 @@ async function checkKeywordsBatch(
   for (let offset = 0; offset < keywords.length; offset += BATCH) {
     const batch = keywords.slice(offset, offset + BATCH);
 
-    const res = await fetch('https://api.dataforseo.com/v3/serp/google/organic/live/regular', {
-      method: 'POST',
-      headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(
-        batch.map((kw) => ({
-          keyword: kw.keyword,
-          location_name: kw.location,
-          language_name: kw.language,
-          depth,
-        })),
-      ),
-    });
+    let res: Response;
+    try {
+      res = await fetch('https://api.dataforseo.com/v3/serp/google/organic/live/regular', {
+        method: 'POST',
+        headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          batch.map((kw) => ({
+            keyword: kw.keyword,
+            location_name: kw.location,
+            language_name: kw.language,
+            depth,
+          })),
+        ),
+        signal: AbortSignal.timeout(60_000),
+      });
+    } catch {
+      continue;
+    }
     if (!res.ok) continue;
 
     const data = await res.json() as SerpResponse;
@@ -146,10 +152,11 @@ export async function checkOneAction(formData: FormData) {
   revalidatePath('/dashboard/rank-tracker');
 }
 
-export async function checkAllAction() {
+export async function checkAllAction(formData: FormData) {
+  const domain = (formData.get('domain') as string | null)?.trim() ?? '';
   const keywords = getTrackedKeywords();
   await checkKeywordsBatch(keywords);
-  revalidatePath('/dashboard/rank-tracker');
+  redirect(domain ? `/dashboard/rank-tracker?domain=${encodeURIComponent(domain)}` : '/dashboard/rank-tracker');
 }
 
 export async function checkDomainAction(formData: FormData) {
@@ -157,5 +164,5 @@ export async function checkDomainAction(formData: FormData) {
   if (!domain) return;
   const keywords = getTrackedKeywords().filter((k) => k.domain === domain);
   await checkKeywordsBatch(keywords);
-  revalidatePath('/dashboard/rank-tracker');
+  redirect(`/dashboard/rank-tracker?domain=${encodeURIComponent(domain)}`);
 }
