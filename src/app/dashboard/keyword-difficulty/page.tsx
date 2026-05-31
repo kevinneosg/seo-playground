@@ -49,7 +49,7 @@ async function fetchDifficulty(
     tasks?: Array<{ status_code?: number; status_message?: string; cost?: number; result?: DifficultyItem[] }>;
   };
   const task = data?.tasks?.[0];
-  if (!task) return { items: [], error: 'Réponse API vide.' };
+  if (!task) return { items: [], error: 'Empty API response.' };
   if (task.status_code && task.status_code !== 20000) return { items: [], error: `DataForSEO: ${task.status_message}` };
   return { items: task.result ?? [], cost: task.cost };
 }
@@ -109,7 +109,7 @@ export default async function KeywordDifficultyPage({ searchParams }: { searchPa
       const history = getKwDifficultyHistory();
       activeEntry = history.find((e) => e.id === historyId) ?? null;
     } else {
-      error = "Cette recherche n'est plus disponible.";
+      error = 'Search no longer available.';
     }
   }
 
@@ -117,7 +117,7 @@ export default async function KeywordDifficultyPage({ searchParams }: { searchPa
 
   if (!historyId && keywords) {
     if (!creds) {
-      error = 'Identifiants DataForSEO manquants. Configurez-les dans les paramètres.';
+      error = 'DataForSEO credentials missing. Configure them in Settings.';
     } else {
       const kwList = keywords.split('\n').map((k) => k.trim()).filter(Boolean).slice(0, 1000);
       const result = await fetchDifficulty(kwList, location, language, creds.login, creds.pass);
@@ -193,7 +193,7 @@ export default async function KeywordDifficultyPage({ searchParams }: { searchPa
             </div>
             <div className="flex items-center gap-3">
               {cost !== undefined && <span className="text-[10px] font-mono text-slate-400">cost: ${cost.toFixed(4)}</span>}
-              <span className="text-xs font-black text-slate-400">{items.length} mot{items.length !== 1 ? 's' : ''}-clé{items.length !== 1 ? 's' : ''}</span>
+              <span className="text-xs font-black text-slate-400">{items.length} keyword{items.length !== 1 ? 's' : ''}</span>
             </div>
           </div>
           {items.length === 0 ? (
@@ -259,7 +259,7 @@ export default async function KeywordDifficultyPage({ searchParams }: { searchPa
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm font-medium truncate ${isActive ? 'text-blue-700' : 'text-slate-800'}`}>{entry.keywords}</p>
                     <p className="text-[11px] text-slate-400 mt-0.5">
-                      {entry.count} mot{entry.count !== 1 ? 's' : ''}-clé{entry.count !== 1 ? 's' : ''}
+                      {entry.count} keyword{entry.count !== 1 ? 's' : ''}
                       {' · '}{entry.location}
                       {entry.cost !== undefined ? ` · $${entry.cost.toFixed(4)}` : ''}
                     </p>

@@ -83,7 +83,7 @@ export default async function SerpPage({ searchParams }: { searchParams: Promise
   // Fresh search
   if (!historyId && keyword) {
     if (!creds) {
-      error = 'Identifiants DataForSEO manquants. Configurez-les dans les paramètres.';
+      error = 'DataForSEO credentials missing. Configure them in Settings.';
     } else {
       try {
         results = await fetchSerp(keyword, location, language, device, depth, creds.login, creds.pass);

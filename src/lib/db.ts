@@ -5,7 +5,7 @@ let _db: Database.Database | null = null;
 
 function getDb(): Database.Database {
   if (!_db) {
-    _db = new Database(path.join(process.cwd(), 'seo-playground.db'));
+    _db = new Database(process.env.DB_PATH ?? path.join(process.cwd(), 'seo-playground.db'));
     _db.pragma('journal_mode = WAL');
     initSchema(_db);
   }
@@ -246,6 +246,180 @@ function initSchema(db: Database.Database) {
       result_count INTEGER,
       result TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS site_audit_tasks (
+      id TEXT PRIMARY KEY,
+      ts INTEGER NOT NULL,
+      target TEXT NOT NULL,
+      start_url TEXT,
+      max_crawl_pages INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      pages_crawled INTEGER,
+      cost REAL,
+      error_message TEXT,
+      summary TEXT,
+      pages TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS top_searches_searches (
+      id TEXT PRIMARY KEY,
+      ts INTEGER NOT NULL,
+      location TEXT NOT NULL,
+      language TEXT NOT NULL,
+      limit_count INTEGER NOT NULL,
+      result_count INTEGER NOT NULL,
+      total_count INTEGER,
+      cost REAL,
+      items TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS domain_tech_searches (
+      id TEXT PRIMARY KEY,
+      ts INTEGER NOT NULL,
+      target TEXT NOT NULL,
+      cost REAL,
+      result TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS domain_find_searches (
+      id TEXT PRIMARY KEY,
+      ts INTEGER NOT NULL,
+      mode TEXT NOT NULL,
+      query TEXT NOT NULL,
+      result_count INTEGER NOT NULL,
+      total_count INTEGER,
+      cost REAL,
+      items TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS domain_whois_searches (
+      id TEXT PRIMARY KEY,
+      ts INTEGER NOT NULL,
+      domain TEXT NOT NULL,
+      cost REAL,
+      result TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS bl_ref_networks (
+      id TEXT PRIMARY KEY,
+      ts INTEGER NOT NULL,
+      target TEXT NOT NULL,
+      result_count INTEGER NOT NULL,
+      cost REAL,
+      items TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS bl_page_intersection (
+      id TEXT PRIMARY KEY,
+      ts INTEGER NOT NULL,
+      targets TEXT NOT NULL,
+      result_count INTEGER NOT NULL,
+      cost REAL,
+      items TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS bl_domain_intersection (
+      id TEXT PRIMARY KEY,
+      ts INTEGER NOT NULL,
+      target1 TEXT NOT NULL,
+      target2 TEXT NOT NULL,
+      result_count INTEGER NOT NULL,
+      cost REAL,
+      items TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS bl_history (
+      id TEXT PRIMARY KEY,
+      ts INTEGER NOT NULL,
+      target TEXT NOT NULL,
+      result_count INTEGER NOT NULL,
+      cost REAL,
+      items TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS bl_bulk_backlinks (
+      id TEXT PRIMARY KEY,
+      ts INTEGER NOT NULL,
+      targets TEXT NOT NULL,
+      result_count INTEGER NOT NULL,
+      cost REAL,
+      items TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS bl_bulk_ref_domains (
+      id TEXT PRIMARY KEY,
+      ts INTEGER NOT NULL,
+      targets TEXT NOT NULL,
+      result_count INTEGER NOT NULL,
+      cost REAL,
+      items TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS keyword_ideas_searches (
+      id TEXT PRIMARY KEY,
+      ts INTEGER NOT NULL,
+      keyword TEXT NOT NULL,
+      location TEXT NOT NULL,
+      language TEXT NOT NULL,
+      result_count INTEGER NOT NULL,
+      cost REAL,
+      items TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS search_intent_searches (
+      id TEXT PRIMARY KEY,
+      ts INTEGER NOT NULL,
+      keywords TEXT NOT NULL,
+      location TEXT NOT NULL,
+      language TEXT NOT NULL,
+      result_count INTEGER NOT NULL,
+      cost REAL,
+      items TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS page_intersection_searches (
+      id TEXT PRIMARY KEY,
+      ts INTEGER NOT NULL,
+      pages TEXT NOT NULL,
+      location TEXT NOT NULL,
+      language TEXT NOT NULL,
+      result_count INTEGER NOT NULL,
+      cost REAL,
+      items TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS domain_categories_searches (
+      id TEXT PRIMARY KEY,
+      ts INTEGER NOT NULL,
+      target TEXT NOT NULL,
+      location TEXT NOT NULL,
+      language TEXT NOT NULL,
+      result_count INTEGER NOT NULL,
+      cost REAL,
+      items TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS subdomains_searches (
+      id TEXT PRIMARY KEY,
+      ts INTEGER NOT NULL,
+      target TEXT NOT NULL,
+      location TEXT NOT NULL,
+      language TEXT NOT NULL,
+      result_count INTEGER NOT NULL,
+      cost REAL,
+      items TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS traffic_estimation_searches (
+      id TEXT PRIMARY KEY,
+      ts INTEGER NOT NULL,
+      targets TEXT NOT NULL,
+      location TEXT NOT NULL,
+      language TEXT NOT NULL,
+      result_count INTEGER NOT NULL,
+      cost REAL,
+      items TEXT NOT NULL
+    );
   `);
 
   db.exec(`CREATE INDEX IF NOT EXISTS idx_rank_checks_kw ON rank_checks(keyword_id, checked_at DESC)`);
@@ -254,6 +428,12 @@ function initSchema(db: Database.Database) {
   try { db.exec('ALTER TABLE serp_searches ADD COLUMN target_hits TEXT'); } catch { /* already exists */ }
   try { db.exec('ALTER TABLE backlinks_searches ADD COLUMN links TEXT'); } catch { /* already exists */ }
   try { db.exec('ALTER TABLE backlinks_searches ADD COLUMN links_total INTEGER'); } catch { /* already exists */ }
+  try { db.exec(`ALTER TABLE grid_searches ADD COLUMN status TEXT NOT NULL DEFAULT 'done'`); } catch { /* already exists */ }
+  try { db.exec('ALTER TABLE grid_searches ADD COLUMN task_ids TEXT'); } catch { /* already exists */ }
+  try { db.exec(`ALTER TABLE grid_searches ADD COLUMN queue_mode TEXT NOT NULL DEFAULT 'live'`); } catch { /* already exists */ }
+  try { db.exec('ALTER TABLE reviews_tasks ADD COLUMN meta TEXT'); } catch { /* already exists */ }
+  try { db.exec('ALTER TABLE domain_find_searches ADD COLUMN keyword TEXT'); } catch { /* already exists */ }
+  try { db.exec('ALTER TABLE domain_find_searches ADD COLUMN technology TEXT'); } catch { /* already exists */ }
 }
 
 // --- Settings ---
@@ -857,6 +1037,9 @@ export function getRelatedKwResults<T>(id: string): T[] | null {
 
 // --- Grid Search ---
 
+export type GridQueueMode = 'live' | 'priority' | 'standard';
+export type GridStatus = 'done' | 'pending' | 'error';
+
 export interface GridSearchEntry {
   id: string;
   ts: number;
@@ -867,12 +1050,24 @@ export interface GridSearchEntry {
   spacing_km: number;
   language: string;
   cost?: number;
+  status: GridStatus;
+  queue_mode: GridQueueMode;
+}
+
+export interface GridTaskPoint {
+  task_id: string;
+  row: number;
+  col: number;
+  lat: number;
+  lng: number;
 }
 
 export interface GridLocalItem {
   rank_group: number;
   title: string;
   domain?: string;
+  url?: string;
+  cid?: string;
   rating_value?: number;
   rating_votes?: number;
   is_target: boolean;
@@ -889,24 +1084,55 @@ export interface GridPoint {
 
 export function getGridHistory(): GridSearchEntry[] {
   const rows = getDb()
-    .prepare('SELECT id, ts, keyword, target, center, grid_size, spacing_km, language, cost FROM grid_searches ORDER BY ts DESC LIMIT 20')
-    .all() as Array<{ id: string; ts: number; keyword: string; target: string; center: string; grid_size: number; spacing_km: number; language: string; cost: number | null }>;
+    .prepare('SELECT id, ts, keyword, target, center, grid_size, spacing_km, language, cost, status, queue_mode FROM grid_searches ORDER BY ts DESC LIMIT 20')
+    .all() as Array<{ id: string; ts: number; keyword: string; target: string; center: string; grid_size: number; spacing_km: number; language: string; cost: number | null; status: string; queue_mode: string }>;
   return rows.map((r) => ({
     id: r.id, ts: r.ts, keyword: r.keyword, target: r.target, center: r.center,
     grid_size: r.grid_size, spacing_km: r.spacing_km, language: r.language, cost: r.cost ?? undefined,
+    status: (r.status ?? 'done') as GridStatus,
+    queue_mode: (r.queue_mode ?? 'live') as GridQueueMode,
   }));
+}
+
+export function getGridEntry(id: string): (GridSearchEntry & { task_ids?: GridTaskPoint[] }) | null {
+  const row = getDb()
+    .prepare('SELECT id, ts, keyword, target, center, grid_size, spacing_km, language, cost, status, queue_mode, task_ids FROM grid_searches WHERE id = ?')
+    .get(id) as { id: string; ts: number; keyword: string; target: string; center: string; grid_size: number; spacing_km: number; language: string; cost: number | null; status: string; queue_mode: string; task_ids: string | null } | undefined;
+  if (!row) return null;
+  return {
+    id: row.id, ts: row.ts, keyword: row.keyword, target: row.target, center: row.center,
+    grid_size: row.grid_size, spacing_km: row.spacing_km, language: row.language, cost: row.cost ?? undefined,
+    status: (row.status ?? 'done') as GridStatus,
+    queue_mode: (row.queue_mode ?? 'live') as GridQueueMode,
+    task_ids: row.task_ids ? JSON.parse(row.task_ids) as GridTaskPoint[] : undefined,
+  };
 }
 
 export function saveGridSearch(entry: GridSearchEntry, results: GridPoint[]): void {
   getDb()
-    .prepare('INSERT OR REPLACE INTO grid_searches (id, ts, keyword, target, center, grid_size, spacing_km, language, cost, results) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-    .run(entry.id, entry.ts, entry.keyword, entry.target, entry.center, entry.grid_size, entry.spacing_km, entry.language, entry.cost ?? null, JSON.stringify(results));
+    .prepare('INSERT OR REPLACE INTO grid_searches (id, ts, keyword, target, center, grid_size, spacing_km, language, cost, results, status, queue_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(entry.id, entry.ts, entry.keyword, entry.target, entry.center, entry.grid_size, entry.spacing_km, entry.language, entry.cost ?? null, JSON.stringify(results), entry.status, entry.queue_mode);
+}
+
+export function saveGridSearchPending(entry: GridSearchEntry, taskPoints: GridTaskPoint[]): void {
+  getDb()
+    .prepare('INSERT OR REPLACE INTO grid_searches (id, ts, keyword, target, center, grid_size, spacing_km, language, cost, results, status, queue_mode, task_ids) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(entry.id, entry.ts, entry.keyword, entry.target, entry.center, entry.grid_size, entry.spacing_km, entry.language, entry.cost ?? null, '[]', 'pending', entry.queue_mode, JSON.stringify(taskPoints));
+}
+
+export function completeGridSearch(id: string, results: GridPoint[], cost: number): void {
+  getDb()
+    .prepare("UPDATE grid_searches SET results = ?, cost = ?, status = 'done', task_ids = NULL WHERE id = ?")
+    .run(JSON.stringify(results), cost, id);
 }
 
 export function getGridResults(id: string): GridPoint[] | null {
   const row = getDb().prepare('SELECT results FROM grid_searches WHERE id = ?').get(id) as { results: string } | undefined;
   if (!row) return null;
-  try { return JSON.parse(row.results) as GridPoint[]; } catch { return null; }
+  try {
+    const parsed = JSON.parse(row.results) as GridPoint[];
+    return parsed.length > 0 ? parsed : null;
+  } catch { return null; }
 }
 
 // --- Instant Pages ---
@@ -966,6 +1192,42 @@ export function getRedditResults<T>(id: string): T[] | null {
   try { return JSON.parse(row.items) as T[]; } catch { return null; }
 }
 
+// --- Top Searches ---
+
+export interface TopSearchesEntry {
+  id: string;
+  ts: number;
+  location: string;
+  language: string;
+  limitCount: number;
+  count: number;
+  totalCount?: number;
+  cost?: number;
+}
+
+export function getTopSearchesHistory(): TopSearchesEntry[] {
+  const rows = getDb()
+    .prepare('SELECT id, ts, location, language, limit_count, result_count, total_count, cost FROM top_searches_searches ORDER BY ts DESC LIMIT 30')
+    .all() as Array<{ id: string; ts: number; location: string; language: string; limit_count: number; result_count: number; total_count: number | null; cost: number | null }>;
+  return rows.map((r) => ({
+    id: r.id, ts: r.ts, location: r.location, language: r.language,
+    limitCount: r.limit_count, count: r.result_count,
+    totalCount: r.total_count ?? undefined, cost: r.cost ?? undefined,
+  }));
+}
+
+export function saveTopSearches<T>(entry: TopSearchesEntry, items: T[]): void {
+  getDb()
+    .prepare('INSERT OR REPLACE INTO top_searches_searches (id, ts, location, language, limit_count, result_count, total_count, cost, items) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(entry.id, entry.ts, entry.location, entry.language, entry.limitCount, entry.count, entry.totalCount ?? null, entry.cost ?? null, JSON.stringify(items));
+}
+
+export function getTopSearchesResults<T>(id: string): T[] | null {
+  const row = getDb().prepare('SELECT items FROM top_searches_searches WHERE id = ?').get(id) as { items: string } | undefined;
+  if (!row) return null;
+  try { return JSON.parse(row.items) as T[]; } catch { return null; }
+}
+
 // --- Google Reviews ---
 
 export interface ReviewsTask {
@@ -998,14 +1260,365 @@ export function getReviewsTasks(): ReviewsTask[] {
   }));
 }
 
-export function updateReviewsTask(id: string, status: ReviewsTask['status'], items: unknown[], cost?: number, resultCount?: number): void {
+export function updateReviewsTask(id: string, status: ReviewsTask['status'], items: unknown[], cost?: number, resultCount?: number, meta?: unknown): void {
+  // Use COALESCE so that passing null preserves the existing cost (set at task_post time)
+  const costVal = (cost !== undefined && cost > 0) ? cost : null;
   getDb()
-    .prepare('UPDATE reviews_tasks SET status = ?, result = ?, cost = ?, result_count = ? WHERE id = ?')
-    .run(status, JSON.stringify(items), cost ?? null, resultCount ?? items.length, id);
+    .prepare('UPDATE reviews_tasks SET status = ?, result = ?, cost = COALESCE(?, cost), result_count = ?, meta = ? WHERE id = ?')
+    .run(status, JSON.stringify(items), costVal, resultCount ?? items.length, meta != null ? JSON.stringify(meta) : null, id);
 }
 
 export function getReviewsTaskResult<T>(id: string): T[] | null {
   const row = getDb().prepare('SELECT result FROM reviews_tasks WHERE id = ?').get(id) as { result: string | null } | undefined;
   if (!row?.result) return null;
   try { return JSON.parse(row.result) as T[]; } catch { return null; }
+}
+
+export function getReviewsTaskMeta<T>(id: string): T | null {
+  const row = getDb().prepare('SELECT meta FROM reviews_tasks WHERE id = ?').get(id) as { meta: string | null } | undefined;
+  if (!row?.meta) return null;
+  try { return JSON.parse(row.meta) as T; } catch { return null; }
+}
+
+// --- Domain Technologies ---
+
+export interface DomainTechEntry {
+  id: string;
+  ts: number;
+  target: string;
+  cost?: number;
+}
+
+export function getDomainTechHistory(): DomainTechEntry[] {
+  const rows = getDb()
+    .prepare('SELECT id, ts, target, cost FROM domain_tech_searches ORDER BY ts DESC LIMIT 30')
+    .all() as Array<{ id: string; ts: number; target: string; cost: number | null }>;
+  return rows.map((r) => ({ id: r.id, ts: r.ts, target: r.target, cost: r.cost ?? undefined }));
+}
+
+export function saveDomainTechSearch<T>(entry: DomainTechEntry, result: T): void {
+  getDb()
+    .prepare('INSERT OR REPLACE INTO domain_tech_searches (id, ts, target, cost, result) VALUES (?, ?, ?, ?, ?)')
+    .run(entry.id, entry.ts, entry.target, entry.cost ?? null, JSON.stringify(result));
+}
+
+export function getDomainTechResult<T>(id: string): T | null {
+  const row = getDb().prepare('SELECT result FROM domain_tech_searches WHERE id = ?').get(id) as { result: string } | undefined;
+  if (!row) return null;
+  try { return JSON.parse(row.result) as T; } catch { return null; }
+}
+
+// --- Domain Find (by keyword + technology combined) ---
+
+export interface DomainFindEntry {
+  id: string;
+  ts: number;
+  keyword?: string;
+  technology?: string;
+  count: number;
+  totalCount?: number;
+  cost?: number;
+}
+
+export function getDomainFindHistory(): DomainFindEntry[] {
+  const rows = getDb()
+    .prepare('SELECT id, ts, keyword, technology, result_count, total_count, cost FROM domain_find_searches ORDER BY ts DESC LIMIT 30')
+    .all() as Array<{ id: string; ts: number; keyword: string | null; technology: string | null; result_count: number; total_count: number | null; cost: number | null }>;
+  return rows.map((r) => ({ id: r.id, ts: r.ts, keyword: r.keyword ?? undefined, technology: r.technology ?? undefined, count: r.result_count, totalCount: r.total_count ?? undefined, cost: r.cost ?? undefined }));
+}
+
+export function saveDomainFindSearch<T>(entry: DomainFindEntry, items: T[]): void {
+  const label = [entry.technology && `tech:${entry.technology}`, entry.keyword && `kw:${entry.keyword}`].filter(Boolean).join(' + ') || '';
+  getDb()
+    .prepare('INSERT OR REPLACE INTO domain_find_searches (id, ts, mode, query, keyword, technology, result_count, total_count, cost, items) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(entry.id, entry.ts, 'find', label, entry.keyword ?? null, entry.technology ?? null, entry.count, entry.totalCount ?? null, entry.cost ?? null, JSON.stringify(items));
+}
+
+export function getDomainFindResults<T>(id: string): T[] | null {
+  const row = getDb().prepare('SELECT items FROM domain_find_searches WHERE id = ?').get(id) as { items: string } | undefined;
+  if (!row) return null;
+  try { return JSON.parse(row.items) as T[]; } catch { return null; }
+}
+
+// --- Domain Whois ---
+
+export interface DomainWhoisEntry {
+  id: string;
+  ts: number;
+  domain: string;
+  cost?: number;
+}
+
+export function getDomainWhoisHistory(): DomainWhoisEntry[] {
+  const rows = getDb()
+    .prepare('SELECT id, ts, domain, cost FROM domain_whois_searches ORDER BY ts DESC LIMIT 30')
+    .all() as Array<{ id: string; ts: number; domain: string; cost: number | null }>;
+  return rows.map((r) => ({ id: r.id, ts: r.ts, domain: r.domain, cost: r.cost ?? undefined }));
+}
+
+export function saveDomainWhoisSearch<T>(entry: DomainWhoisEntry, result: T): void {
+  getDb()
+    .prepare('INSERT OR REPLACE INTO domain_whois_searches (id, ts, domain, cost, result) VALUES (?, ?, ?, ?, ?)')
+    .run(entry.id, entry.ts, entry.domain, entry.cost ?? null, JSON.stringify(result));
+}
+
+export function getDomainWhoisResult<T>(id: string): T | null {
+  const row = getDb().prepare('SELECT result FROM domain_whois_searches WHERE id = ?').get(id) as { result: string } | undefined;
+  if (!row) return null;
+  try { return JSON.parse(row.result) as T; } catch { return null; }
+}
+
+// --- Site Audit ---
+
+export interface SiteAuditEntry {
+  id: string;
+  ts: number;
+  target: string;
+  startUrl?: string;
+  maxCrawlPages: number;
+  status: 'pending' | 'in_progress' | 'finished' | 'error';
+  pagesCrawled?: number;
+  cost?: number;
+  errorMessage?: string;
+}
+
+export function getSiteAuditHistory(): SiteAuditEntry[] {
+  const rows = getDb()
+    .prepare('SELECT id, ts, target, start_url, max_crawl_pages, status, pages_crawled, cost, error_message FROM site_audit_tasks ORDER BY ts DESC LIMIT 20')
+    .all() as Array<{ id: string; ts: number; target: string; start_url: string | null; max_crawl_pages: number; status: string; pages_crawled: number | null; cost: number | null; error_message: string | null }>;
+  return rows.map((r) => ({
+    id: r.id, ts: r.ts, target: r.target, startUrl: r.start_url ?? undefined,
+    maxCrawlPages: r.max_crawl_pages, status: r.status as SiteAuditEntry['status'],
+    pagesCrawled: r.pages_crawled ?? undefined, cost: r.cost ?? undefined,
+    errorMessage: r.error_message ?? undefined,
+  }));
+}
+
+export function getSiteAuditTask(id: string): SiteAuditEntry | null {
+  const row = getDb()
+    .prepare('SELECT id, ts, target, start_url, max_crawl_pages, status, pages_crawled, cost, error_message FROM site_audit_tasks WHERE id = ?')
+    .get(id) as { id: string; ts: number; target: string; start_url: string | null; max_crawl_pages: number; status: string; pages_crawled: number | null; cost: number | null; error_message: string | null } | undefined;
+  if (!row) return null;
+  return {
+    id: row.id, ts: row.ts, target: row.target, startUrl: row.start_url ?? undefined,
+    maxCrawlPages: row.max_crawl_pages, status: row.status as SiteAuditEntry['status'],
+    pagesCrawled: row.pages_crawled ?? undefined, cost: row.cost ?? undefined,
+    errorMessage: row.error_message ?? undefined,
+  };
+}
+
+export function upsertSiteAuditTask(entry: SiteAuditEntry): void {
+  getDb()
+    .prepare('INSERT OR REPLACE INTO site_audit_tasks (id, ts, target, start_url, max_crawl_pages, status, pages_crawled, cost, error_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(entry.id, entry.ts, entry.target, entry.startUrl ?? null, entry.maxCrawlPages, entry.status, entry.pagesCrawled ?? null, entry.cost ?? null, entry.errorMessage ?? null);
+}
+
+export function saveSiteAuditResult<S, P>(id: string, summary: S, pages: P[], pagesCrawled?: number): void {
+  getDb()
+    .prepare("UPDATE site_audit_tasks SET summary = ?, pages = ?, status = 'finished', pages_crawled = COALESCE(?, pages_crawled) WHERE id = ?")
+    .run(JSON.stringify(summary), JSON.stringify(pages), pagesCrawled ?? null, id);
+}
+
+export function getSiteAuditSummary<T>(id: string): T | null {
+  const row = getDb().prepare('SELECT summary FROM site_audit_tasks WHERE id = ?').get(id) as { summary: string | null } | undefined;
+  if (!row?.summary) return null;
+  try { return JSON.parse(row.summary) as T; } catch { return null; }
+}
+
+export function getSiteAuditPages<T>(id: string): T[] | null {
+  const row = getDb().prepare('SELECT pages FROM site_audit_tasks WHERE id = ?').get(id) as { pages: string | null } | undefined;
+  if (!row?.pages) return null;
+  try { return JSON.parse(row.pages) as T[]; } catch { return null; }
+}
+
+// ─── Keyword Ideas ────────────────────────────────────────────────────────────
+
+export interface KeywordIdeasEntry { id: string; ts: number; keyword: string; location: string; language: string; count: number; cost?: number; }
+type KIRow = { id: string; ts: number; keyword: string; location: string; language: string; result_count: number; cost: number | null };
+
+export function getKeywordIdeasHistory(): KeywordIdeasEntry[] {
+  const rows = getDb().prepare('SELECT id, ts, keyword, location, language, result_count, cost FROM keyword_ideas_searches ORDER BY ts DESC LIMIT 20').all() as KIRow[];
+  return rows.map((r) => ({ id: r.id, ts: r.ts, keyword: r.keyword, location: r.location, language: r.language, count: r.result_count, cost: r.cost ?? undefined }));
+}
+export function saveKeywordIdeasSearch(entry: KeywordIdeasEntry, items: unknown[]): void {
+  getDb().prepare('INSERT OR REPLACE INTO keyword_ideas_searches (id, ts, keyword, location, language, result_count, cost, items) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(entry.id, entry.ts, entry.keyword, entry.location, entry.language, entry.count, entry.cost ?? null, JSON.stringify(items));
+}
+export function getKeywordIdeasResults<T>(id: string): T[] | null {
+  const row = getDb().prepare('SELECT items FROM keyword_ideas_searches WHERE id = ?').get(id) as { items: string } | undefined;
+  if (!row) return null; try { return JSON.parse(row.items) as T[]; } catch { return null; }
+}
+
+// ─── Search Intent ────────────────────────────────────────────────────────────
+
+export interface SearchIntentEntry { id: string; ts: number; keywords: string; location: string; language: string; count: number; cost?: number; }
+type SIRow = { id: string; ts: number; keywords: string; location: string; language: string; result_count: number; cost: number | null };
+
+export function getSearchIntentHistory(): SearchIntentEntry[] {
+  const rows = getDb().prepare('SELECT id, ts, keywords, location, language, result_count, cost FROM search_intent_searches ORDER BY ts DESC LIMIT 20').all() as SIRow[];
+  return rows.map((r) => ({ id: r.id, ts: r.ts, keywords: r.keywords, location: r.location, language: r.language, count: r.result_count, cost: r.cost ?? undefined }));
+}
+export function saveSearchIntentSearch(entry: SearchIntentEntry, items: unknown[]): void {
+  getDb().prepare('INSERT OR REPLACE INTO search_intent_searches (id, ts, keywords, location, language, result_count, cost, items) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(entry.id, entry.ts, entry.keywords, entry.location, entry.language, entry.count, entry.cost ?? null, JSON.stringify(items));
+}
+export function getSearchIntentResults<T>(id: string): T[] | null {
+  const row = getDb().prepare('SELECT items FROM search_intent_searches WHERE id = ?').get(id) as { items: string } | undefined;
+  if (!row) return null; try { return JSON.parse(row.items) as T[]; } catch { return null; }
+}
+
+// ─── Page Intersection ────────────────────────────────────────────────────────
+
+export interface PageIntersectionEntry { id: string; ts: number; pages: string; location: string; language: string; count: number; cost?: number; }
+type PIRow = { id: string; ts: number; pages: string; location: string; language: string; result_count: number; cost: number | null };
+
+export function getPageIntersectionHistory(): PageIntersectionEntry[] {
+  const rows = getDb().prepare('SELECT id, ts, pages, location, language, result_count, cost FROM page_intersection_searches ORDER BY ts DESC LIMIT 20').all() as PIRow[];
+  return rows.map((r) => ({ id: r.id, ts: r.ts, pages: r.pages, location: r.location, language: r.language, count: r.result_count, cost: r.cost ?? undefined }));
+}
+export function savePageIntersectionSearch(entry: PageIntersectionEntry, items: unknown[]): void {
+  getDb().prepare('INSERT OR REPLACE INTO page_intersection_searches (id, ts, pages, location, language, result_count, cost, items) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(entry.id, entry.ts, entry.pages, entry.location, entry.language, entry.count, entry.cost ?? null, JSON.stringify(items));
+}
+export function getPageIntersectionResults<T>(id: string): T[] | null {
+  const row = getDb().prepare('SELECT items FROM page_intersection_searches WHERE id = ?').get(id) as { items: string } | undefined;
+  if (!row) return null; try { return JSON.parse(row.items) as T[]; } catch { return null; }
+}
+
+// ─── Domain Categories ────────────────────────────────────────────────────────
+
+export interface DomainCategoriesEntry { id: string; ts: number; target: string; location: string; language: string; count: number; cost?: number; }
+type DCRow = { id: string; ts: number; target: string; location: string; language: string; result_count: number; cost: number | null };
+
+export function getDomainCategoriesHistory(): DomainCategoriesEntry[] {
+  const rows = getDb().prepare('SELECT id, ts, target, location, language, result_count, cost FROM domain_categories_searches ORDER BY ts DESC LIMIT 20').all() as DCRow[];
+  return rows.map((r) => ({ id: r.id, ts: r.ts, target: r.target, location: r.location, language: r.language, count: r.result_count, cost: r.cost ?? undefined }));
+}
+export function saveDomainCategoriesSearch(entry: DomainCategoriesEntry, items: unknown[]): void {
+  getDb().prepare('INSERT OR REPLACE INTO domain_categories_searches (id, ts, target, location, language, result_count, cost, items) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(entry.id, entry.ts, entry.target, entry.location, entry.language, entry.count, entry.cost ?? null, JSON.stringify(items));
+}
+export function getDomainCategoriesResults<T>(id: string): T[] | null {
+  const row = getDb().prepare('SELECT items FROM domain_categories_searches WHERE id = ?').get(id) as { items: string } | undefined;
+  if (!row) return null; try { return JSON.parse(row.items) as T[]; } catch { return null; }
+}
+
+// ─── Subdomains ───────────────────────────────────────────────────────────────
+
+export interface SubdomainsEntry { id: string; ts: number; target: string; location: string; language: string; count: number; cost?: number; }
+type SDRow = { id: string; ts: number; target: string; location: string; language: string; result_count: number; cost: number | null };
+
+export function getSubdomainsHistory(): SubdomainsEntry[] {
+  const rows = getDb().prepare('SELECT id, ts, target, location, language, result_count, cost FROM subdomains_searches ORDER BY ts DESC LIMIT 20').all() as SDRow[];
+  return rows.map((r) => ({ id: r.id, ts: r.ts, target: r.target, location: r.location, language: r.language, count: r.result_count, cost: r.cost ?? undefined }));
+}
+export function saveSubdomainsSearch(entry: SubdomainsEntry, items: unknown[]): void {
+  getDb().prepare('INSERT OR REPLACE INTO subdomains_searches (id, ts, target, location, language, result_count, cost, items) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(entry.id, entry.ts, entry.target, entry.location, entry.language, entry.count, entry.cost ?? null, JSON.stringify(items));
+}
+export function getSubdomainsResults<T>(id: string): T[] | null {
+  const row = getDb().prepare('SELECT items FROM subdomains_searches WHERE id = ?').get(id) as { items: string } | undefined;
+  if (!row) return null; try { return JSON.parse(row.items) as T[]; } catch { return null; }
+}
+
+// ─── Traffic Estimation ───────────────────────────────────────────────────────
+
+export interface TrafficEstimationEntry { id: string; ts: number; targets: string; location: string; language: string; count: number; cost?: number; }
+type TERow = { id: string; ts: number; targets: string; location: string; language: string; result_count: number; cost: number | null };
+
+export function getTrafficEstimationHistory(): TrafficEstimationEntry[] {
+  const rows = getDb().prepare('SELECT id, ts, targets, location, language, result_count, cost FROM traffic_estimation_searches ORDER BY ts DESC LIMIT 20').all() as TERow[];
+  return rows.map((r) => ({ id: r.id, ts: r.ts, targets: r.targets, location: r.location, language: r.language, count: r.result_count, cost: r.cost ?? undefined }));
+}
+export function saveTrafficEstimationSearch(entry: TrafficEstimationEntry, items: unknown[]): void {
+  getDb().prepare('INSERT OR REPLACE INTO traffic_estimation_searches (id, ts, targets, location, language, result_count, cost, items) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(entry.id, entry.ts, entry.targets, entry.location, entry.language, entry.count, entry.cost ?? null, JSON.stringify(items));
+}
+export function getTrafficEstimationResults<T>(id: string): T[] | null {
+  const row = getDb().prepare('SELECT items FROM traffic_estimation_searches WHERE id = ?').get(id) as { items: string } | undefined;
+  if (!row) return null; try { return JSON.parse(row.items) as T[]; } catch { return null; }
+}
+
+// ─── Backlinks: Referring Networks ───────────────────────────────────────────
+
+export interface BlRefNetEntry { id: string; ts: number; target: string; count: number; cost?: number; }
+type BlRNRow = { id: string; ts: number; target: string; result_count: number; cost: number | null };
+export function getBlRefNetHistory(): BlRefNetEntry[] {
+  return (getDb().prepare('SELECT id, ts, target, result_count, cost FROM bl_ref_networks ORDER BY ts DESC LIMIT 20').all() as BlRNRow[]).map((r) => ({ id: r.id, ts: r.ts, target: r.target, count: r.result_count, cost: r.cost ?? undefined }));
+}
+export function saveBlRefNet(entry: BlRefNetEntry, items: unknown[]): void {
+  getDb().prepare('INSERT OR REPLACE INTO bl_ref_networks (id, ts, target, result_count, cost, items) VALUES (?, ?, ?, ?, ?, ?)').run(entry.id, entry.ts, entry.target, entry.count, entry.cost ?? null, JSON.stringify(items));
+}
+export function getBlRefNetResults<T>(id: string): T[] | null {
+  const row = getDb().prepare('SELECT items FROM bl_ref_networks WHERE id = ?').get(id) as { items: string } | undefined;
+  if (!row) return null; try { return JSON.parse(row.items) as T[]; } catch { return null; }
+}
+
+// ─── Backlinks: Page Intersection ────────────────────────────────────────────
+
+export interface BlPageIntEntry { id: string; ts: number; targets: string; count: number; cost?: number; }
+type BlPIRow = { id: string; ts: number; targets: string; result_count: number; cost: number | null };
+export function getBlPageIntHistory(): BlPageIntEntry[] {
+  return (getDb().prepare('SELECT id, ts, targets, result_count, cost FROM bl_page_intersection ORDER BY ts DESC LIMIT 20').all() as BlPIRow[]).map((r) => ({ id: r.id, ts: r.ts, targets: r.targets, count: r.result_count, cost: r.cost ?? undefined }));
+}
+export function saveBlPageInt(entry: BlPageIntEntry, items: unknown[]): void {
+  getDb().prepare('INSERT OR REPLACE INTO bl_page_intersection (id, ts, targets, result_count, cost, items) VALUES (?, ?, ?, ?, ?, ?)').run(entry.id, entry.ts, entry.targets, entry.count, entry.cost ?? null, JSON.stringify(items));
+}
+export function getBlPageIntResults<T>(id: string): T[] | null {
+  const row = getDb().prepare('SELECT items FROM bl_page_intersection WHERE id = ?').get(id) as { items: string } | undefined;
+  if (!row) return null; try { return JSON.parse(row.items) as T[]; } catch { return null; }
+}
+
+// ─── Backlinks: Domain Intersection ──────────────────────────────────────────
+
+export interface BlDomIntEntry { id: string; ts: number; target1: string; target2: string; count: number; cost?: number; }
+type BlDIRow = { id: string; ts: number; target1: string; target2: string; result_count: number; cost: number | null };
+export function getBlDomIntHistory(): BlDomIntEntry[] {
+  return (getDb().prepare('SELECT id, ts, target1, target2, result_count, cost FROM bl_domain_intersection ORDER BY ts DESC LIMIT 20').all() as BlDIRow[]).map((r) => ({ id: r.id, ts: r.ts, target1: r.target1, target2: r.target2, count: r.result_count, cost: r.cost ?? undefined }));
+}
+export function saveBlDomInt(entry: BlDomIntEntry, items: unknown[]): void {
+  getDb().prepare('INSERT OR REPLACE INTO bl_domain_intersection (id, ts, target1, target2, result_count, cost, items) VALUES (?, ?, ?, ?, ?, ?, ?)').run(entry.id, entry.ts, entry.target1, entry.target2, entry.count, entry.cost ?? null, JSON.stringify(items));
+}
+export function getBlDomIntResults<T>(id: string): T[] | null {
+  const row = getDb().prepare('SELECT items FROM bl_domain_intersection WHERE id = ?').get(id) as { items: string } | undefined;
+  if (!row) return null; try { return JSON.parse(row.items) as T[]; } catch { return null; }
+}
+
+// ─── Backlinks: History ───────────────────────────────────────────────────────
+
+export interface BlHistEntry { id: string; ts: number; target: string; count: number; cost?: number; }
+type BlHRow = { id: string; ts: number; target: string; result_count: number; cost: number | null };
+export function getBlHistHistory(): BlHistEntry[] {
+  return (getDb().prepare('SELECT id, ts, target, result_count, cost FROM bl_history ORDER BY ts DESC LIMIT 20').all() as BlHRow[]).map((r) => ({ id: r.id, ts: r.ts, target: r.target, count: r.result_count, cost: r.cost ?? undefined }));
+}
+export function saveBlHist(entry: BlHistEntry, items: unknown[]): void {
+  getDb().prepare('INSERT OR REPLACE INTO bl_history (id, ts, target, result_count, cost, items) VALUES (?, ?, ?, ?, ?, ?)').run(entry.id, entry.ts, entry.target, entry.count, entry.cost ?? null, JSON.stringify(items));
+}
+export function getBlHistResults<T>(id: string): T[] | null {
+  const row = getDb().prepare('SELECT items FROM bl_history WHERE id = ?').get(id) as { items: string } | undefined;
+  if (!row) return null; try { return JSON.parse(row.items) as T[]; } catch { return null; }
+}
+
+// ─── Backlinks: Bulk Backlinks ────────────────────────────────────────────────
+
+export interface BlBulkBlEntry { id: string; ts: number; targets: string; count: number; cost?: number; }
+type BlBBRow = { id: string; ts: number; targets: string; result_count: number; cost: number | null };
+export function getBlBulkBlHistory(): BlBulkBlEntry[] {
+  return (getDb().prepare('SELECT id, ts, targets, result_count, cost FROM bl_bulk_backlinks ORDER BY ts DESC LIMIT 20').all() as BlBBRow[]).map((r) => ({ id: r.id, ts: r.ts, targets: r.targets, count: r.result_count, cost: r.cost ?? undefined }));
+}
+export function saveBlBulkBl(entry: BlBulkBlEntry, items: unknown[]): void {
+  getDb().prepare('INSERT OR REPLACE INTO bl_bulk_backlinks (id, ts, targets, result_count, cost, items) VALUES (?, ?, ?, ?, ?, ?)').run(entry.id, entry.ts, entry.targets, entry.count, entry.cost ?? null, JSON.stringify(items));
+}
+export function getBlBulkBlResults<T>(id: string): T[] | null {
+  const row = getDb().prepare('SELECT items FROM bl_bulk_backlinks WHERE id = ?').get(id) as { items: string } | undefined;
+  if (!row) return null; try { return JSON.parse(row.items) as T[]; } catch { return null; }
+}
+
+// ─── Backlinks: Bulk Referring Domains ───────────────────────────────────────
+
+export interface BlBulkRdEntry { id: string; ts: number; targets: string; count: number; cost?: number; }
+type BlBRRow = { id: string; ts: number; targets: string; result_count: number; cost: number | null };
+export function getBlBulkRdHistory(): BlBulkRdEntry[] {
+  return (getDb().prepare('SELECT id, ts, targets, result_count, cost FROM bl_bulk_ref_domains ORDER BY ts DESC LIMIT 20').all() as BlBRRow[]).map((r) => ({ id: r.id, ts: r.ts, targets: r.targets, count: r.result_count, cost: r.cost ?? undefined }));
+}
+export function saveBlBulkRd(entry: BlBulkRdEntry, items: unknown[]): void {
+  getDb().prepare('INSERT OR REPLACE INTO bl_bulk_ref_domains (id, ts, targets, result_count, cost, items) VALUES (?, ?, ?, ?, ?, ?)').run(entry.id, entry.ts, entry.targets, entry.count, entry.cost ?? null, JSON.stringify(items));
+}
+export function getBlBulkRdResults<T>(id: string): T[] | null {
+  const row = getDb().prepare('SELECT items FROM bl_bulk_ref_domains WHERE id = ?').get(id) as { items: string } | undefined;
+  if (!row) return null; try { return JSON.parse(row.items) as T[]; } catch { return null; }
 }

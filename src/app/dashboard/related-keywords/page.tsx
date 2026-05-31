@@ -60,7 +60,7 @@ async function fetchRelatedKeywords(
     tasks?: Array<{ status_code?: number; status_message?: string; cost?: number; result?: Array<{ items?: RelatedKeywordItem[] }> }>;
   };
   const task = data?.tasks?.[0];
-  if (!task) return { items: [], error: 'Réponse API vide.' };
+  if (!task) return { items: [], error: 'Empty API response.' };
   if (task.status_code && task.status_code !== 20000) return { items: [], error: `DataForSEO: ${task.status_message}` };
   return { items: task.result?.[0]?.items ?? [], cost: task.cost };
 }
@@ -119,7 +119,7 @@ export default async function RelatedKeywordsPage({ searchParams }: { searchPara
 
   if (!historyId && keyword) {
     if (!creds) {
-      error = 'Identifiants DataForSEO manquants. Configurez-les dans les paramètres.';
+      error = 'DataForSEO credentials missing. Configure them in Settings.';
     } else {
       const result = await fetchRelatedKeywords(keyword, location, language, depth, limit, creds.login, creds.pass);
       items = result.items;

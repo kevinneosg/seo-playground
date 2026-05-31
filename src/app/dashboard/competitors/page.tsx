@@ -76,7 +76,7 @@ async function fetchCompetitors(
   };
 
   const task = data?.tasks?.[0];
-  if (!task) return { items: [], error: 'Réponse API vide.' };
+  if (!task) return { items: [], error: 'Empty API response.' };
   if (task.status_code && task.status_code !== 20000) {
     return { items: [], error: `DataForSEO: ${task.status_message}` };
   }
@@ -140,7 +140,7 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
 
   if (!historyId && target) {
     if (!creds) {
-      error = 'Identifiants DataForSEO manquants. Configurez-les dans les paramètres.';
+      error = 'DataForSEO credentials missing. Configure them in Settings.';
     } else {
       const res = await fetchCompetitors(target, location, language, limit, creds.login, creds.pass);
       items = res.items;

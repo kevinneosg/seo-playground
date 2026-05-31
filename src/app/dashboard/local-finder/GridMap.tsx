@@ -41,13 +41,20 @@ function buildPopupHtml(point: GridPoint, target: string): string {
       ? `<span style="color:#f59e0b;font-size:10px">★</span><span style="font-size:10px;color:#64748b"> ${item.rating_value.toFixed(1)}${item.rating_votes != null ? ` (${item.rating_votes.toLocaleString()})` : ''}</span>`
       : '';
     const targetBg = item.is_target ? 'background:#f0fdf4;border-left:3px solid #10b981;padding-left:5px;margin-left:-5px;border-radius:2px;' : '';
+    const mapsHref = item.cid
+      ? `https://www.google.com/maps?cid=${item.cid}`
+      : `https://www.google.com/maps/search/${encodeURIComponent(item.title)}`;
+    const mapsLink = `<a href="${mapsHref}" target="_blank" rel="noopener noreferrer" style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;color:#3b82f6;text-decoration:none;white-space:nowrap;margin-top:2px;display:inline-block">Maps ↗</a>`;
     return `
       <div style="display:flex;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:1px solid #f1f5f9;${targetBg}">
         <span style="font-size:12px;font-weight:900;min-width:24px;color:${rankColor_}">#${item.rank_group}</span>
         <div style="flex:1;min-width:0">
           <div style="font-size:12px;${nameStyle};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px">${item.title}</div>
           ${item.domain ? `<div style="font-size:10px;color:#94a3b8;margin-top:1px">${item.domain}</div>` : ''}
-          ${stars ? `<div style="margin-top:1px">${stars}</div>` : ''}
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            ${stars ? `<div style="margin-top:1px">${stars}</div>` : ''}
+            ${mapsLink}
+          </div>
         </div>
       </div>`;
   }).join('');
@@ -144,6 +151,7 @@ export default function GridMap({ points, gridSize, target }: Props) {
         const popupContent = buildPopupHtml(point, target);
         marker.bindPopup(popupContent, {
           maxWidth: 280,
+          maxHeight: 260,
           className: 'grid-popup',
           autoPan: false,
         });
@@ -175,6 +183,16 @@ export default function GridMap({ points, gridSize, target }: Props) {
         }
         .grid-popup .leaflet-popup-content {
           margin: 12px 14px;
+          overflow-y: auto;
+          scrollbar-width: thin;
+          scrollbar-color: #cbd5e1 transparent;
+        }
+        .grid-popup .leaflet-popup-content::-webkit-scrollbar {
+          width: 4px;
+        }
+        .grid-popup .leaflet-popup-content::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 4px;
         }
         .grid-popup .leaflet-popup-tip {
           background: white;

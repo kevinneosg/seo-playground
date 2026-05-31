@@ -5,7 +5,7 @@ import { useState } from 'react';
 interface Props {
   children: React.ReactNode;
   className?: string;
-  btnLabel: string;
+  btnLabel: React.ReactNode;
   btnClassName: string;
   loadingLabel?: string;
   disabled?: boolean;

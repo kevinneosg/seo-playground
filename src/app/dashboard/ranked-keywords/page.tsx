@@ -105,7 +105,7 @@ async function fetchRankedKeywords(
   };
 
   const task = data?.tasks?.[0];
-  if (!task) return { items: [], totalCount: 0, error: 'Réponse API vide.' };
+  if (!task) return { items: [], totalCount: 0, error: 'Empty API response.' };
   if (task.status_code && task.status_code !== 20000) {
     return { items: [], totalCount: 0, error: `DataForSEO: ${task.status_message}` };
   }
@@ -198,7 +198,7 @@ export default async function RankedKeywordsPage({ searchParams }: { searchParam
 
   if (!historyId && target) {
     if (!creds) {
-      error = 'Identifiants DataForSEO manquants. Configurez-les dans les paramètres.';
+      error = 'DataForSEO credentials missing. Configure them in Settings.';
     } else {
       const result = await fetchRankedKeywords(target, location, language, limit, orderBy, maxPosition, creds.login, creds.pass);
       items = result.items;

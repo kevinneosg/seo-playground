@@ -1,0 +1,9 @@
+.git
+.next
+node_modules
+*.db
+*.db-shm
+*.db-wal
+.env*
+.wrangler
+data/

@@ -1,0 +1,11 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      # SQLite database — persisted in ./data/ next to this file
+      - ./data:/data
+    environment:
+      DB_PATH: /data/seo-playground.db
+    restart: unless-stopped

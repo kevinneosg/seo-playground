@@ -65,7 +65,7 @@ async function fetchKeywordData(
     tasks?: Array<{ status_code?: number; status_message?: string; cost?: number; result?: KeywordItem[] }>;
   };
   const task = data?.tasks?.[0];
-  if (!task) return { items: [], error: 'Réponse API vide.' };
+  if (!task) return { items: [], error: 'Empty API response.' };
   if (task.status_code && task.status_code !== 20000) return { items: [], error: `DataForSEO: ${task.status_message}` };
   return { items: task.result ?? [], cost: task.cost };
 }
@@ -117,7 +117,7 @@ export default async function KeywordDataPage({ searchParams }: { searchParams: 
 
   if (!historyId && hasQuery) {
     if (!creds) {
-      error = 'Identifiants DataForSEO manquants. Configurez-les dans les paramètres.';
+      error = 'DataForSEO credentials missing. Configure them in Settings.';
     } else {
       const body = buildRequestBody(params as Record<string, string | undefined>);
       const result = await fetchKeywordData(se, seType, body, creds.login, creds.pass);

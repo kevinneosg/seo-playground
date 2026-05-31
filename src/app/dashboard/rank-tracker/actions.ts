@@ -3,8 +3,10 @@
 import {
   getCredentials, getTrackedKeywords, addTrackedKeyword,
   removeTrackedKeyword, saveRankCheck, getSetting, setSetting,
+  addTargetDomain, removeTargetDomain,
 } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 
 interface SerpItem {
   type: string;
@@ -89,6 +91,21 @@ export async function saveDepthAction(formData: FormData) {
   revalidatePath('/dashboard/rank-tracker');
 }
 
+export async function addDomainAction(formData: FormData) {
+  const domain = (formData.get('domain') as string)?.trim();
+  if (!domain) return;
+  addTargetDomain(domain);
+  revalidatePath('/dashboard/rank-tracker');
+  redirect(`/dashboard/rank-tracker?domain=${encodeURIComponent(domain.toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, ''))}`);
+}
+
+export async function removeDomainAction(formData: FormData) {
+  const domain = formData.get('domain') as string;
+  if (!domain) return;
+  removeTargetDomain(domain);
+  redirect('/dashboard/rank-tracker');
+}
+
 export async function addKeywordAction(formData: FormData) {
   const raw = (formData.get('keywords') as string) ?? '';
   const domain = (formData.get('domain') as string)?.trim();
@@ -96,6 +113,7 @@ export async function addKeywordAction(formData: FormData) {
   const language = (formData.get('language') as string)?.trim() || 'French';
 
   if (!domain) return;
+  addTargetDomain(domain);
 
   const kwList = raw.split('\n').map((k) => k.trim()).filter(Boolean).slice(0, 50);
   if (kwList.length === 0) return;
@@ -130,6 +148,14 @@ export async function checkOneAction(formData: FormData) {
 
 export async function checkAllAction() {
   const keywords = getTrackedKeywords();
+  await checkKeywordsBatch(keywords);
+  revalidatePath('/dashboard/rank-tracker');
+}
+
+export async function checkDomainAction(formData: FormData) {
+  const domain = formData.get('domain') as string;
+  if (!domain) return;
+  const keywords = getTrackedKeywords().filter((k) => k.domain === domain);
   await checkKeywordsBatch(keywords);
   revalidatePath('/dashboard/rank-tracker');
 }

@@ -32,7 +32,7 @@ async function fetchAnchors(target: string, limit: number, login: string, pass: 
   if (!res.ok) return { items: [], total: 0, cost: 0, error: `Error HTTP ${res.status}` };
   const data = await res.json() as { tasks?: Array<{ status_code?: number; status_message?: string; cost?: number; result?: Array<{ total_count?: number; items?: AnchorItem[] }> }> };
   const task = data.tasks?.[0];
-  if (!task) return { items: [], total: 0, cost: 0, error: 'Réponse API vide.' };
+  if (!task) return { items: [], total: 0, cost: 0, error: 'Empty API response.' };
   if (task.status_code && task.status_code !== 20000) {
     return { items: [], total: 0, cost: 0, error: `DataForSEO: ${task.status_message} (${task.status_code})` };
   }

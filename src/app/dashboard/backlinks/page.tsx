@@ -86,7 +86,7 @@ async function fetchSummary(target: string, auth: string): Promise<{ result?: Ba
   if (!res.ok) return { error: `Error API summary ${res.status}` };
   const data = await res.json() as { tasks?: Array<{ status_code?: number; status_message?: string; cost?: number; result?: BacklinksSummary[] }> };
   const task = data?.tasks?.[0];
-  if (!task) return { error: 'Réponse API vide.' };
+  if (!task) return { error: 'Empty API response.' };
   if (task.status_code && task.status_code !== 20000) return { error: `DataForSEO: ${task.status_message}` };
   return { result: task.result?.[0], cost: task.cost };
 }
@@ -115,7 +115,7 @@ async function fetchLinks(
   if (!res.ok) return { items: [], total: 0, error: `Error API links ${res.status}` };
   const data = await res.json() as { tasks?: Array<{ status_code?: number; status_message?: string; cost?: number; result?: Array<{ total_count?: number; items?: BacklinkItem[] }> }> };
   const task = data?.tasks?.[0];
-  if (!task) return { items: [], total: 0, error: 'Réponse API vide.' };
+  if (!task) return { items: [], total: 0, error: 'Empty API response.' };
   if (task.status_code && task.status_code !== 20000) return { items: [], total: 0, error: `DataForSEO: ${task.status_message}` };
   const result = task.result?.[0];
   return { items: result?.items ?? [], total: result?.total_count ?? 0, cost: task.cost };
@@ -215,7 +215,7 @@ export default async function BacklinksPage({ searchParams }: { searchParams: Pr
 
   if (!historyId && target) {
     if (!creds) {
-      error = 'Identifiants DataForSEO manquants. Configurez-les dans les paramètres.';
+      error = 'DataForSEO credentials missing. Configure them in Settings.';
     } else {
       const auth = btoa(`${creds.login}:${creds.pass}`);
       const clean = cleanTarget(target);
@@ -300,7 +300,7 @@ export default async function BacklinksPage({ searchParams }: { searchParams: Pr
             </select>
           </div>
           <div>
-            <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-1.5">Nombre de liens</label>
+            <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-1.5">Number of links</label>
             <select name="limit" defaultValue={String(limit)}
               className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
               <option value="50">50</option>

@@ -275,7 +275,7 @@ export default function KeywordDataForm({ defaults }: Props) {
         type="submit"
         className="w-full bg-slate-900 text-white font-black uppercase tracking-widest text-xs py-3 rounded-xl hover:bg-blue-600 transition-colors"
       >
-        Lancer la recherche
+        Search
       </button>
     </form>
   );

@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import {
   getCredentials, getSetting,
-  getReviewsTasks, getReviewsTaskResult, updateReviewsTask,
+  getReviewsTasks, getReviewsTaskResult, getReviewsTaskMeta, updateReviewsTask,
   type ReviewsTask,
 } from '@/lib/db';
 import { submitReviewsTaskAction } from './actions';
@@ -30,6 +30,27 @@ interface Review {
   reviews_count?: number;
   owner_answer?: string;
   owner_time_ago?: string;
+}
+
+interface PopularHour {
+  hour: number;
+  value: number;
+}
+
+interface BusinessMeta {
+  place_id?: string;
+  title?: string;
+  category?: string;
+  additional_categories?: string[];
+  description?: string;
+  address?: string;
+  phone?: string;
+  website?: string;
+  url?: string;
+  rating?: { value?: number; votes_count?: number };
+  popular_times?: PopularHour[];
+  popular_times_by_day?: Record<string, PopularHour[]>;
+  total_count?: number;
 }
 
 interface SearchParams {
@@ -153,10 +174,8 @@ function MonthlyChart({ reviews }: { reviews: Review[] }) {
 
         return (
           <g key={month}>
-            {/* Native tooltip on hover */}
-            <title>{label}: {count} review{count !== 1 ? 's' : ''}</title>
-            {/* Invisible wider hit area so the tooltip triggers easily */}
-            <rect x={PAD.left + i * step} y={PAD.top} width={step} height={chartH} fill="transparent" />
+            {/* Invisible wider hit area — native browser tooltip via title attr */}
+            <rect {...({ x: PAD.left + i * step, y: PAD.top, width: step, height: chartH, fill: 'transparent', title: `${label}: ${count} review${count !== 1 ? 's' : ''}` } as React.SVGProps<SVGRectElement>)} />
             <rect x={x} y={y} width={barW} height={barH} rx="3" fill="#3b82f6" opacity="0.8" />
             {barH > 16 && (
               <text x={cx} y={y + barH - 4} textAnchor="middle" fontSize="8" fill="white" fontWeight="700">
@@ -287,6 +306,161 @@ function GoalCalculator({ reviews }: { reviews: Review[] }) {
   );
 }
 
+// ─── Text with line breaks ────────────────────────────────────────────────────
+
+function TextWithBreaks({ text, className }: { text: string; className?: string }) {
+  const parts = text.split(/<br\s*\/?>/gi);
+  return (
+    <span className={className}>
+      {parts.map((part, i) => (
+        <span key={i}>
+          {i > 0 && <br />}
+          {part}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+// ─── Business info card ───────────────────────────────────────────────────────
+
+function BusinessInfoCard({ meta }: { meta: BusinessMeta }) {
+  const hasInfo = meta.place_id || meta.category || meta.description || meta.address || meta.phone || meta.website || meta.url || (meta.additional_categories && meta.additional_categories.length > 0);
+  if (!hasInfo) return null;
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="px-6 py-4 border-b border-slate-100">
+        <h2 className="text-xs font-black uppercase tracking-widest text-slate-400">Business info</h2>
+      </div>
+      <div className="px-6 py-5 space-y-3">
+        {meta.category && (
+          <div className="flex items-start gap-3">
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 w-32 shrink-0 pt-0.5">Primary category</span>
+            <span className="text-sm font-semibold text-slate-800">{meta.category}</span>
+          </div>
+        )}
+        {meta.additional_categories && meta.additional_categories.length > 0 && (
+          <div className="flex items-start gap-3">
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 w-32 shrink-0 pt-0.5">Also in</span>
+            <div className="flex flex-wrap gap-1.5">
+              {meta.additional_categories.map((c, i) => (
+                <span key={i} className="text-xs text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg">{c}</span>
+              ))}
+            </div>
+          </div>
+        )}
+        {meta.description && (
+          <div className="flex items-start gap-3">
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 w-32 shrink-0 pt-0.5">Description</span>
+            <p className="text-sm text-slate-600 leading-relaxed">{meta.description}</p>
+          </div>
+        )}
+        {meta.address && (
+          <div className="flex items-start gap-3">
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 w-32 shrink-0 pt-0.5">Address</span>
+            <span className="text-sm text-slate-700">{meta.address}</span>
+          </div>
+        )}
+        {meta.phone && (
+          <div className="flex items-start gap-3">
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 w-32 shrink-0 pt-0.5">Phone</span>
+            <span className="text-sm text-slate-700">{meta.phone}</span>
+          </div>
+        )}
+        {(meta.website || meta.url) && (
+          <div className="flex items-start gap-3">
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 w-32 shrink-0 pt-0.5">Website</span>
+            <a href={meta.website ?? meta.url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline truncate max-w-xs">{meta.website ?? meta.url}</a>
+          </div>
+        )}
+        {meta.place_id && (
+          <div className="flex items-start gap-3">
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 w-32 shrink-0 pt-0.5">Place ID</span>
+            <span className="text-xs font-mono text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded select-all">{meta.place_id}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Popular times chart (single day) ────────────────────────────────────────
+
+const DAY_LABELS: Record<string, string> = {
+  monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu',
+  friday: 'Fri', saturday: 'Sat', sunday: 'Sun',
+};
+const DAY_ORDER = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+function PopularTimesDay({ dayKey, hours }: { dayKey: string; hours: PopularHour[] }) {
+  if (!hours || hours.length === 0) return null;
+
+  const sorted = [...hours].sort((a, b) => a.hour - b.hour);
+  const maxVal = Math.max(...sorted.map((h) => h.value), 1);
+  const W = 260, H = 72;
+  const PAD = { top: 8, right: 4, bottom: 20, left: 4 };
+  const chartW = W - PAD.left - PAD.right;
+  const chartH = H - PAD.top - PAD.bottom;
+  const n = sorted.length;
+  const step = chartW / n;
+  const barW = Math.max(4, step - 2);
+
+  const peakHour = sorted.reduce((best, h) => h.value > best.value ? h : best, sorted[0]);
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center justify-between px-1">
+        <span className="text-[11px] font-black uppercase tracking-widest text-slate-500">{DAY_LABELS[dayKey] ?? dayKey}</span>
+        {peakHour.value > 0 && (
+          <span className="text-[10px] text-slate-400">Peak {peakHour.hour}h</span>
+        )}
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: `${H}px` }}>
+        {sorted.map((h, i) => {
+          const barH = Math.max(2, (h.value / maxVal) * chartH);
+          const cx = PAD.left + i * step + step / 2;
+          const x = cx - barW / 2;
+          const y = PAD.top + chartH - barH;
+          const isEvery3 = h.hour % 3 === 0;
+          const isPeak = h.hour === peakHour.hour;
+          return (
+            <g key={h.hour}>
+              <rect {...({ x: PAD.left + i * step, y: PAD.top, width: step, height: chartH, fill: 'transparent', title: `${h.hour}h: ${h.value}%` } as React.SVGProps<SVGRectElement>)} />
+              <rect x={x} y={y} width={barW} height={barH} rx="2"
+                fill={isPeak ? '#3b82f6' : h.value > 60 ? '#60a5fa' : '#bfdbfe'}
+              />
+              {isEvery3 && (
+                <text x={cx} y={H - PAD.bottom + 12} textAnchor="middle" fontSize="8" fill="#94a3b8">{h.hour}</text>
+              )}
+            </g>
+          );
+        })}
+        <line x1={PAD.left} y1={PAD.top + chartH} x2={W - PAD.right} y2={PAD.top + chartH} stroke="#e2e8f0" strokeWidth="1" />
+      </svg>
+    </div>
+  );
+}
+
+function PopularTimesByDaySection({ byDay }: { byDay: Record<string, PopularHour[]> }) {
+  const days = DAY_ORDER.filter((d) => byDay[d] && byDay[d].length > 0);
+  if (days.length === 0) return null;
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="px-6 py-4 border-b border-slate-100">
+        <h2 className="text-xs font-black uppercase tracking-widest text-slate-400">Popular times by day</h2>
+        <p className="text-[11px] text-slate-400 mt-0.5">Hover a bar to see the hour and busyness level.</p>
+      </div>
+      <div className="px-6 py-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+        {days.map((day) => (
+          <PopularTimesDay key={day} dayKey={day} hours={byDay[day]} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Task status badge ────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: ReviewsTask['status'] }) {
@@ -357,17 +531,52 @@ export default async function GoogleReviewsPage({ searchParams }: { searchParams
               status_code?: number;
               cost?: number;
               result_count?: number;
-              result?: Array<{ items?: Review[]; items_count?: number; total_count?: number }>;
+              result?: Array<{
+                items?: Review[];
+                items_count?: number;
+                total_count?: number;
+                place_id?: string;
+                title?: string;
+                category?: string;
+                additional_categories?: string[];
+                description?: string;
+                address?: string;
+                phone?: string;
+                website?: string;
+                url?: string;
+                rating?: { value?: number; votes_count?: number };
+                popular_times?: PopularHour[];
+                popular_times_by_day?: Record<string, PopularHour[]>;
+              }>;
             }>;
           };
 
           const task = getData?.tasks?.[0];
           if (!task || task.status_code !== 20000) continue;
 
-          const items = task.result?.[0]?.items ?? [];
-          const resultCount = task.result?.[0]?.total_count ?? task.result_count ?? items.length;
-          const cost = task.cost ?? getData.cost;
-          updateReviewsTask(pt.id, 'ready', items, cost, resultCount);
+          const resultData = task.result?.[0];
+          const items = resultData?.items ?? [];
+          const resultCount = resultData?.total_count ?? task.result_count ?? items.length;
+          // Prefer task-level cost; fall back to top-level; pass undefined if 0 so COALESCE keeps task_post cost
+          const cost = task.cost || getData.cost || undefined;
+
+          const meta: BusinessMeta = {
+            place_id: resultData?.place_id,
+            title: resultData?.title,
+            category: resultData?.category,
+            additional_categories: resultData?.additional_categories,
+            description: resultData?.description,
+            address: resultData?.address,
+            phone: resultData?.phone,
+            website: resultData?.website,
+            url: resultData?.url,
+            rating: resultData?.rating,
+            popular_times: resultData?.popular_times,
+            popular_times_by_day: resultData?.popular_times_by_day,
+            total_count: resultData?.total_count,
+          };
+
+          updateReviewsTask(pt.id, 'ready', items, cost, resultCount, meta);
         }
       }
     } catch { /* silently ignore poll errors */ }
@@ -377,11 +586,14 @@ export default async function GoogleReviewsPage({ searchParams }: { searchParams
   const activeId = params.id;
   const activeTask = activeId ? tasks.find((t) => t.id === activeId) ?? null : null;
   const reviews: Review[] = activeTask?.status === 'ready' ? (getReviewsTaskResult<Review>(activeTask.id) ?? []) : [];
+  const meta: BusinessMeta | null = activeTask?.status === 'ready' ? getReviewsTaskMeta<BusinessMeta>(activeTask.id) : null;
 
   const ratings = reviews.map((r) => r.rating?.value ?? 0).filter((v) => v > 0);
   const avgRating = ratings.length > 0 ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null;
   const fiveStarPct = ratings.length > 0 ? ((ratings.filter((v) => v >= 4.5).length / ratings.length) * 100).toFixed(0) : null;
   const positivePct = ratings.length > 0 ? ((ratings.filter((v) => v >= 4).length / ratings.length) * 100).toFixed(0) : null;
+  const ownerRepliedCount = reviews.filter((r) => r.owner_answer).length;
+  const ownerReplyPct = reviews.length > 0 ? ((ownerRepliedCount / reviews.length) * 100).toFixed(0) : null;
 
   const pendingCount = tasks.filter((t) => t.status === 'pending').length;
 
@@ -542,12 +754,18 @@ export default async function GoogleReviewsPage({ searchParams }: { searchParams
                 {positivePct !== null && (
                   <StatCard label="Positive" value={`${positivePct}%`} sub="4+ stars" />
                 )}
+                {ownerReplyPct !== null && (
+                  <StatCard label="Owner replies" value={`${ownerReplyPct}%`} sub={`${ownerRepliedCount} of ${reviews.length}`} />
+                )}
                 {activeTask.cost !== undefined && (
                   <StatCard label="API cost" value={`$${activeTask.cost.toFixed(5)}`} />
                 )}
               </div>
             </div>
           </div>
+
+          {/* Business info */}
+          {meta && <BusinessInfoCard meta={meta} />}
 
           {/* Distribution */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -569,6 +787,21 @@ export default async function GoogleReviewsPage({ searchParams }: { searchParams
               <MonthlyChart reviews={reviews} />
             </div>
           </div>
+
+          {/* Popular times by day */}
+          {meta?.popular_times_by_day && <PopularTimesByDaySection byDay={meta.popular_times_by_day} />}
+
+          {/* Popular times (current/live single snapshot) */}
+          {meta?.popular_times && meta.popular_times.length > 0 && !meta.popular_times_by_day && (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100">
+                <h2 className="text-xs font-black uppercase tracking-widest text-slate-400">Popular times</h2>
+              </div>
+              <div className="px-6 py-5">
+                <PopularTimesDay dayKey="today" hours={meta.popular_times} />
+              </div>
+            </div>
+          )}
 
           {/* Goal calculator */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -606,12 +839,16 @@ export default async function GoogleReviewsPage({ searchParams }: { searchParams
                     )}
                   </div>
                   {r.review_text && (
-                    <p className="text-sm text-slate-600 leading-relaxed">{r.review_text}</p>
+                    <p className="text-sm text-slate-600 leading-relaxed">
+                      <TextWithBreaks text={r.review_text} />
+                    </p>
                   )}
                   {r.owner_answer && (
                     <div className="mt-2 ml-4 pl-3 border-l-2 border-blue-100">
                       <p className="text-[10px] font-black uppercase tracking-widest text-blue-400 mb-0.5">Owner response</p>
-                      <p className="text-xs text-slate-500 leading-relaxed">{r.owner_answer}</p>
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        <TextWithBreaks text={r.owner_answer} />
+                      </p>
                     </div>
                   )}
                 </div>

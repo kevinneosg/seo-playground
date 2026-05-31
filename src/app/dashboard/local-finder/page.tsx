@@ -1,9 +1,15 @@
 import {
   getCredentials, getSetting, getLfHistory, saveLfSearch, getLfResults, type LfHistoryEntry,
-  getGridHistory, saveGridSearch, getGridResults, type GridSearchEntry, type GridPoint, type GridLocalItem,
+  getGridHistory, getGridEntry, saveGridSearch, saveGridSearchPending, getGridResults,
+  type GridSearchEntry, type GridPoint, type GridQueueMode,
 } from '@/lib/db';
 import LocalFinderForm from './LocalFinderForm';
 import GridResults from './GridResults';
+import GridPending from './GridPending';
+import {
+  type LocalPackItem,
+  fetchGridSearch, postGridTasksQueue, stableGridId,
+} from './grid-api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -11,21 +17,6 @@ interface Rating {
   value?: number;
   votes_count?: number;
   rating_max?: number;
-}
-
-interface LocalPackItem {
-  type: string;
-  rank_group: number;
-  rank_absolute: number;
-  title?: string;
-  description?: string;
-  domain?: string;
-  url?: string;
-  phone?: string;
-  booking_url?: string;
-  is_paid?: boolean;
-  rating?: Rating;
-  cid?: string;
 }
 
 interface SearchParams {
@@ -45,6 +36,7 @@ interface SearchParams {
   spacing_km?: string;
   grid_target?: string;
   grid_history_id?: string;
+  queue_mode?: string;
 }
 
 // ─── API helpers ──────────────────────────────────────────────────────────────
@@ -62,11 +54,17 @@ async function fetchLocalFinder(
   if (params.time_filter) body.time_filter = params.time_filter;
 
   const auth = btoa(`${login}:${pass}`);
-  const res = await fetch('https://api.dataforseo.com/v3/serp/google/local_finder/live/advanced', {
-    method: 'POST',
-    headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify([body]),
-  });
+  let res: Response;
+  try {
+    res = await fetch('https://api.dataforseo.com/v3/serp/google/local_finder/live/advanced', {
+      method: 'POST',
+      headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify([body]),
+      signal: AbortSignal.timeout(30_000),
+    });
+  } catch {
+    return { items: [], error: 'Request timed out or failed. Please try again.' };
+  }
   if (!res.ok) return { items: [], error: `API error ${res.status}: ${res.statusText}` };
   const data = await res.json() as {
     tasks?: Array<{ status_code?: number; status_message?: string; cost?: number; result?: Array<{ check_url?: string; items?: LocalPackItem[] }> }>;
@@ -77,98 +75,6 @@ async function fetchLocalFinder(
   const result = task.result?.[0];
   const items = (result?.items ?? []).filter((i) => i.type === 'local_pack');
   return { items, cost: task.cost, checkUrl: result?.check_url };
-}
-
-function generateGridCoords(centerLat: number, centerLng: number, gridSize: number, spacingKm: number) {
-  const latDeg = spacingKm / 111.32;
-  const lngDeg = spacingKm / (111.32 * Math.cos(centerLat * Math.PI / 180));
-  const half = Math.floor(gridSize / 2);
-  const coords: { row: number; col: number; lat: number; lng: number }[] = [];
-  for (let row = 0; row < gridSize; row++) {
-    for (let col = 0; col < gridSize; col++) {
-      coords.push({
-        row,
-        col,
-        lat: centerLat + (half - row) * latDeg,
-        lng: centerLng + (col - half) * lngDeg,
-      });
-    }
-  }
-  return coords;
-}
-
-async function fetchOneGridPoint(
-  keyword: string,
-  lat: number,
-  lng: number,
-  language: string,
-  auth: string,
-): Promise<{ items: LocalPackItem[]; cost: number }> {
-  const res = await fetch('https://api.dataforseo.com/v3/serp/google/local_finder/live/advanced', {
-    method: 'POST',
-    headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify([{
-      keyword,
-      location_coordinate: `${lat.toFixed(6)},${lng.toFixed(6)}`,
-      language_name: language,
-      depth: 20,
-    }]),
-  });
-  if (!res.ok) return { items: [], cost: 0 };
-  const data = await res.json() as {
-    tasks?: Array<{ status_code?: number; cost?: number; result?: Array<{ items?: LocalPackItem[] }> }>;
-  };
-  const task = data?.tasks?.[0];
-  if (!task || task.status_code !== 20000) return { items: [], cost: 0 };
-  const items = (task.result?.[0]?.items ?? []).filter((i) => i.type === 'local_pack');
-  return { items, cost: task.cost ?? 0 };
-}
-
-async function fetchGridSearch(
-  keyword: string,
-  center: string,
-  gridSize: number,
-  spacingKm: number,
-  language: string,
-  target: string,
-  login: string,
-  pass: string,
-): Promise<{ results: GridPoint[]; cost: number; error?: string }> {
-  const parts = center.split(',').map(Number);
-  if (parts.length < 2 || isNaN(parts[0]) || isNaN(parts[1])) {
-    return { results: [], cost: 0, error: 'Invalid coordinates.' };
-  }
-  const [centerLat, centerLng] = parts;
-  const coords = generateGridCoords(centerLat, centerLng, gridSize, spacingKm);
-  const auth = btoa(`${login}:${pass}`);
-  const targetLower = target.toLowerCase();
-
-  const pointResults = await Promise.all(
-    coords.map(async ({ row, col, lat, lng }) => {
-      const { items: rawItems, cost } = await fetchOneGridPoint(keyword, lat, lng, language, auth);
-
-      const isTarget = (item: LocalPackItem) =>
-        (item.title ?? '').toLowerCase().includes(targetLower) ||
-        (item.domain ?? '').toLowerCase().includes(targetLower) ||
-        (item.url ?? '').toLowerCase().includes(targetLower);
-
-      const match = rawItems.find(isTarget);
-      const items: GridLocalItem[] = rawItems.slice(0, 20).map((item) => ({
-        rank_group: item.rank_group,
-        title: item.title ?? '—',
-        domain: item.domain,
-        rating_value: item.rating?.value,
-        rating_votes: item.rating?.votes_count,
-        is_target: isTarget(item),
-      }));
-
-      return { point: { row, col, lat, lng, rank: match ? match.rank_group : null, items }, cost };
-    })
-  );
-
-  const results = pointResults.map((r) => r.point);
-  const totalCost = pointResults.reduce((s, r) => s + r.cost, 0);
-  return { results, cost: totalCost };
 }
 
 // ─── UI helpers ───────────────────────────────────────────────────────────────
@@ -192,6 +98,26 @@ function formatDate(ts: number) {
   return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+function lfRerunUrl(entry: LfHistoryEntry) {
+  const p = new URLSearchParams(entry.params as Record<string, string>);
+  p.delete('history_id');
+  return `/dashboard/local-finder?${p.toString()}`;
+}
+
+function gridRerunUrl(entry: { keyword: string; center: string; grid_size: number; spacing_km: number; target: string; language: string; queue_mode: string }) {
+  const p = new URLSearchParams({
+    keyword: entry.keyword,
+    location_coordinate: entry.center,
+    grid_size: String(entry.grid_size),
+    spacing_km: String(entry.spacing_km),
+    grid_target: entry.target,
+    language: entry.language,
+    queue_mode: entry.queue_mode,
+    mode: 'grid',
+  });
+  return `/dashboard/local-finder?${p.toString()}`;
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function LocalFinderPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
@@ -203,6 +129,7 @@ export default async function LocalFinderPage({ searchParams }: { searchParams: 
 
   const defaultLocation = getSetting('default_location') ?? 'France';
   const defaultLanguage = getSetting('default_language') ?? 'English';
+  const defaultCoordinates = getSetting('default_coordinates') ?? '';
 
   // ── Regular local finder state ──
   let items: LocalPackItem[] = [];
@@ -215,6 +142,7 @@ export default async function LocalFinderPage({ searchParams }: { searchParams: 
   // ── Grid search state ──
   let gridResults: GridPoint[] | null = null;
   let gridEntry: GridSearchEntry | null = null;
+  let gridPending: { id: string; totalPoints: number; queueMode: GridQueueMode } | null = null;
   let gridError: string | null = null;
   let gridCost: number | undefined;
 
@@ -233,13 +161,15 @@ export default async function LocalFinderPage({ searchParams }: { searchParams: 
 
   // ── Load grid history ──
   if (gridHistoryId) {
-    const saved = getGridResults(gridHistoryId);
-    if (saved) {
-      gridResults = saved;
-      const history = getGridHistory();
-      gridEntry = history.find((e) => e.id === gridHistoryId) ?? null;
-    } else {
+    const entry = getGridEntry(gridHistoryId);
+    if (!entry) {
       gridError = 'Search not found.';
+    } else if (entry.status === 'pending') {
+      gridEntry = entry;
+      gridPending = { id: entry.id, totalPoints: entry.grid_size ** 2, queueMode: entry.queue_mode };
+    } else {
+      gridResults = getGridResults(gridHistoryId);
+      gridEntry = entry;
     }
   }
 
@@ -249,24 +179,37 @@ export default async function LocalFinderPage({ searchParams }: { searchParams: 
     if (!creds) {
       error = 'DataForSEO credentials missing. Configure them in Settings.';
     } else {
-      const result = await fetchLocalFinder(params, creds.login, creds.pass);
-      items = result.items;
-      cost = result.cost;
-      checkUrl = result.checkUrl;
-      error = result.error ?? null;
+      // Stable ID for deduplication across concurrent renders
+      const lfWindow = Math.floor(Date.now() / 60_000);
+      const lfKey = `${lfWindow}|${params.keyword}|${params.location_coordinate ?? params.location}|${params.language}|${params.device}`;
+      let lfHash = 0x811c9dc5;
+      for (let i = 0; i < lfKey.length; i++) { lfHash ^= lfKey.charCodeAt(i); lfHash = Math.imul(lfHash, 0x01000193) >>> 0; }
+      const lfId = lfHash.toString(16).padStart(8, '0');
 
-      if (!error && items.length > 0) {
-        const entry: LfHistoryEntry = {
-          id: crypto.randomUUID().slice(0, 8),
-          ts: Date.now(),
-          keyword: params.keyword ?? '',
-          location: params.location ?? '',
-          count: items.length, cost: result.cost,
-          params: Object.fromEntries(
-            Object.entries(params).filter(([k, v]) => k !== 'history_id' && v !== undefined)
-          ) as Record<string, string>,
-        };
-        saveLfSearch(entry, items);
+      const lfExisting = getLfResults<LocalPackItem>(lfId);
+      if (lfExisting) {
+        items = lfExisting;
+        isFromHistory = true;
+      } else {
+        const result = await fetchLocalFinder(params, creds.login, creds.pass);
+        items = result.items;
+        cost = result.cost;
+        checkUrl = result.checkUrl;
+        error = result.error ?? null;
+
+        if (!error && items.length > 0) {
+          const entry: LfHistoryEntry = {
+            id: lfId,
+            ts: Date.now(),
+            keyword: params.keyword ?? '',
+            location: params.location ?? '',
+            count: items.length, cost: result.cost,
+            params: Object.fromEntries(
+              Object.entries(params).filter(([k, v]) => k !== 'history_id' && v !== undefined)
+            ) as Record<string, string>,
+          };
+          saveLfSearch(entry, items);
+        }
       }
     }
   }
@@ -276,20 +219,28 @@ export default async function LocalFinderPage({ searchParams }: { searchParams: 
     if (!creds) {
       gridError = 'DataForSEO credentials missing. Configure them in Settings.';
     } else {
-      const gridSize = Math.min(Math.max(parseInt(params.grid_size ?? '5', 10), 3), 9);
+      const gridSize = Math.min(Math.max(parseInt(params.grid_size ?? '5', 10), 3), 11);
       const spacingKm = parseFloat(params.spacing_km ?? '1');
-      const result = await fetchGridSearch(
-        params.keyword, params.location_coordinate,
-        gridSize, spacingKm, params.language ?? defaultLanguage,
-        params.grid_target, creds.login, creds.pass,
+      const queueMode = (params.queue_mode ?? 'live') as GridQueueMode;
+
+      // Stable ID prevents duplicate API calls when React renders this component
+      // multiple times for a single request (concurrent rendering).
+      const id = stableGridId(
+        params.keyword, params.location_coordinate, gridSize, spacingKm, params.grid_target, queueMode,
       );
-      if (result.error) {
-        gridError = result.error;
+
+      // Check if this exact search was already executed (another concurrent render beat us to it)
+      const alreadySaved = getGridEntry(id);
+      if (alreadySaved) {
+        gridEntry = alreadySaved;
+        if (alreadySaved.status === 'pending') {
+          gridPending = { id, totalPoints: gridSize ** 2, queueMode };
+        } else {
+          gridResults = getGridResults(id);
+          gridCost = alreadySaved.cost;
+        }
       } else {
-        gridResults = result.results;
-        gridCost = result.cost;
-        const id = crypto.randomUUID().slice(0, 8);
-        gridEntry = {
+        const baseEntry: GridSearchEntry = {
           id, ts: Date.now(),
           keyword: params.keyword,
           target: params.grid_target,
@@ -297,9 +248,38 @@ export default async function LocalFinderPage({ searchParams }: { searchParams: 
           grid_size: gridSize,
           spacing_km: spacingKm,
           language: params.language ?? defaultLanguage,
-          cost: result.cost,
+          status: 'done',
+          queue_mode: queueMode,
         };
-        saveGridSearch(gridEntry, result.results);
+
+        if (queueMode === 'live') {
+          const result = await fetchGridSearch(
+            params.keyword, params.location_coordinate,
+            gridSize, spacingKm, params.language ?? defaultLanguage,
+            params.grid_target, creds.login, creds.pass,
+          );
+          if (result.error) {
+            gridError = result.error;
+          } else {
+            gridResults = result.results;
+            gridCost = result.cost;
+            gridEntry = { ...baseEntry, cost: result.cost };
+            saveGridSearch(gridEntry, result.results);
+          }
+        } else {
+          const result = await postGridTasksQueue(
+            params.keyword, params.location_coordinate,
+            gridSize, spacingKm, params.language ?? defaultLanguage,
+            creds.login, creds.pass,
+          );
+          if (result.error) {
+            gridError = result.error;
+          } else {
+            gridEntry = { ...baseEntry, status: 'pending', cost: result.cost };
+            saveGridSearchPending(gridEntry, result.taskPoints);
+            gridPending = { id, totalPoints: gridSize ** 2, queueMode };
+          }
+        }
       }
     }
   }
@@ -312,6 +292,7 @@ export default async function LocalFinderPage({ searchParams }: { searchParams: 
     keyword: (sourceParams.keyword ?? '').toString(),
     location: (sourceParams.location ?? defaultLocation).toString(),
     locationCoordinate: (sourceParams.location_coordinate ?? '').toString(),
+    defaultCenter: defaultCoordinates,
     language: (sourceParams.language ?? defaultLanguage).toString(),
     device: (sourceParams.device ?? 'desktop').toString(),
     os: (sourceParams.os ?? 'windows').toString(),
@@ -322,19 +303,30 @@ export default async function LocalFinderPage({ searchParams }: { searchParams: 
     gridSize: (params.grid_size ?? '5').toString(),
     spacingKm: (params.spacing_km ?? '1').toString(),
     gridTarget: (params.grid_target ?? '').toString(),
+    queueMode: (params.queue_mode ?? 'live').toString(),
   };
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-black text-slate-900 tracking-tight">Local Finder</h1>
-        <p className="text-sm text-slate-400 mt-1">Google Local Finder results and Grid Search in real time.</p>
+        <p className="text-sm text-slate-400 mt-1">Google Local Finder results and Grid Search — Live, Priority, or Standard queue.</p>
       </div>
 
       <LocalFinderForm defaults={formDefaults} />
 
       {/* ── Grid results ── */}
       {gridError && <div className="bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl px-4 py-3">{gridError}</div>}
+      {gridPending && gridEntry && (
+        <GridPending
+          searchId={gridPending.id}
+          totalPoints={gridPending.totalPoints}
+          queueMode={gridPending.queueMode}
+          keyword={gridEntry.keyword}
+          target={gridEntry.target}
+          gridSize={gridEntry.grid_size}
+        />
+      )}
       {gridResults && gridEntry && (
         <GridResults
           results={gridResults}
@@ -420,17 +412,25 @@ export default async function LocalFinderPage({ searchParams }: { searchParams: 
               {historyIndex.map((entry) => {
                 const isActive = entry.id === historyId;
                 return (
-                  <a key={entry.id} href={`/dashboard/local-finder?history_id=${entry.id}`}
-                    className={`flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 transition-colors ${isActive ? 'bg-blue-50' : ''}`}>
-                    <div className="flex-1 min-w-0">
+                  <div key={entry.id} className={`flex items-center gap-2 px-6 py-3.5 hover:bg-slate-50 transition-colors ${isActive ? 'bg-blue-50' : ''}`}>
+                    <a href={`/dashboard/local-finder?history_id=${entry.id}`} className="flex-1 min-w-0">
                       <p className={`text-sm font-medium truncate ${isActive ? 'text-blue-700' : 'text-slate-800'}`}>{entry.keyword}</p>
                       <p className="text-[11px] text-slate-400 mt-0.5 truncate">
                         {entry.location} · {entry.count} result{entry.count !== 1 ? 's' : ''}
                         {entry.cost !== undefined ? ` · $${entry.cost.toFixed(4)}` : ''}
                       </p>
+                    </a>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="text-[11px] text-slate-400">{formatDate(entry.ts)}</span>
+                      <a
+                        href={lfRerunUrl(entry)}
+                        className="text-[10px] font-black uppercase tracking-widest text-emerald-600 hover:text-emerald-800 transition-colors"
+                        title="Run this search again"
+                      >
+                        Re-run ↻
+                      </a>
                     </div>
-                    <span className="shrink-0 text-[11px] text-slate-400">{formatDate(entry.ts)}</span>
-                  </a>
+                  </div>
                 );
               })}
             </div>
@@ -446,21 +446,38 @@ export default async function LocalFinderPage({ searchParams }: { searchParams: 
             <div className="divide-y divide-slate-50">
               {gridHistory.map((entry) => {
                 const isActive = entry.id === gridHistoryId;
+                const isPending = entry.status === 'pending';
                 return (
-                  <a key={entry.id} href={`/dashboard/local-finder?grid_history_id=${entry.id}`}
-                    className={`flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 transition-colors ${isActive ? 'bg-blue-50' : ''}`}>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium truncate ${isActive ? 'text-blue-700' : 'text-slate-800'}`}>
-                        {entry.keyword}
-                        <span className="ml-2 text-[10px] font-black text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{entry.grid_size}×{entry.grid_size}</span>
-                      </p>
+                  <div key={entry.id} className={`flex items-center gap-2 px-6 py-3.5 hover:bg-slate-50 transition-colors ${isActive ? 'bg-blue-50' : ''}`}>
+                    <a href={`/dashboard/local-finder?grid_history_id=${entry.id}`} className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className={`text-sm font-medium truncate ${isActive ? 'text-blue-700' : 'text-slate-800'}`}>
+                          {entry.keyword}
+                        </p>
+                        <span className="text-[10px] font-black text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded shrink-0">{entry.grid_size}×{entry.grid_size}</span>
+                        {isPending && (
+                          <span className="text-[10px] font-black text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded shrink-0">Pending</span>
+                        )}
+                        {entry.queue_mode !== 'live' && !isPending && (
+                          <span className="text-[10px] font-black text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded shrink-0 capitalize">{entry.queue_mode}</span>
+                        )}
+                      </div>
                       <p className="text-[11px] text-slate-400 mt-0.5 truncate">
                         Target: {entry.target} · {entry.spacing_km} km
                         {entry.cost !== undefined ? ` · $${entry.cost.toFixed(4)}` : ''}
                       </p>
+                    </a>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="text-[11px] text-slate-400">{formatDate(entry.ts)}</span>
+                      <a
+                        href={gridRerunUrl(entry)}
+                        className="text-[10px] font-black uppercase tracking-widest text-emerald-600 hover:text-emerald-800 transition-colors"
+                        title="Run this search again"
+                      >
+                        Re-run ↻
+                      </a>
                     </div>
-                    <span className="shrink-0 text-[11px] text-slate-400">{formatDate(entry.ts)}</span>
-                  </a>
+                  </div>
                 );
               })}
             </div>
