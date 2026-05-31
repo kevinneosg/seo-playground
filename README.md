@@ -42,8 +42,8 @@ If you find this useful, consider supporting the project:
 - **Backlinks Page Intersection** — Pages linking to multiple of your targets simultaneously
 - **Backlinks Domain Intersection** — Domains linking to you and a competitor
 - **Bulk Backlinks / Bulk Referring Domains** — Aggregated backlink metrics for a domain list
-- **Local Finder** — Local business listings with grid search for geographic visibility analysis
-- **Geo-Grid Ranking** — Ranking heatmap across a geographic grid of points
+- **Local Finder** — Google local pack results for any keyword and location, with map-based coordinate picker
+- **Geo-Grid Ranking** — Local visibility heatmap across a configurable grid of points (3×3 to 11×11). Choose between three API modes: Live (~6 s, instant results), Priority (~1 min, 40% cheaper) or Standard (background queue, 70% cheaper). Results are color-coded by rank position and saved locally for later review.
 - **On-Page Site Audit** — Full site crawl with pages, links, resources, duplicate tags and non-indexable pages
 - **On-Page Instant Pages** — Instant single-page audit without crawling
 - **Microdata Analysis** — Structured data inspection for any crawled URL
@@ -114,6 +114,13 @@ Search history and results are cached locally in `seo-playground.db`. The databa
 - [Lucide React](https://lucide.dev/) — icons
 
 ## Changelog
+
+### 2026-06-01
+
+- **Local Finder simplified** — grid search removed from Local Finder and now lives exclusively in its own dedicated Geo-Grid Ranking page
+- **Geo-Grid highlighted** — three queue modes (Live / Priority / Standard), grid sizes from 3×3 to 11×11, color-coded heatmap, auto-polling, local history
+- **README: run options clarified** — Docker and `npm run build && npm start` recommended over `npm run dev`; dev mode noted as slow by design (no optimization, recompiles on every request)
+- **Next.js dev indicator removed** — `devIndicators: false`
 
 ### 2026-05-31
 
