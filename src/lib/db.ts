@@ -201,6 +201,14 @@ export async function initSchema(): Promise<void> {
       cost DOUBLE PRECISION
     );
 
+    CREATE TABLE IF NOT EXISTS rank_check_tasks (
+      task_id TEXT PRIMARY KEY,
+      keyword_id BIGINT NOT NULL REFERENCES tracked_keywords(id) ON DELETE CASCADE,
+      domain TEXT NOT NULL,
+      posted_at BIGINT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending'
+    );
+
     CREATE TABLE IF NOT EXISTS ref_domains_searches (
       id TEXT PRIMARY KEY,
       ts BIGINT NOT NULL,
@@ -485,6 +493,7 @@ export async function initSchema(): Promise<void> {
   `);
 
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_rank_checks_kw ON rank_checks(keyword_id, checked_at DESC)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_rank_check_tasks_kw ON rank_check_tasks(keyword_id)`);
 
   // Migrations — add columns that may not exist in older DBs.
   await pool.query('ALTER TABLE serp_searches ADD COLUMN IF NOT EXISTS target_hits TEXT');
@@ -924,6 +933,48 @@ export async function getLatestRankCheck(keywordId: number): Promise<RankCheck |
   )).rows[0];
   if (!row) return null;
   return { id: Number(row.id), keywordId: Number(row.keyword_id), checkedAt: Number(row.checked_at), date: row.date, position: row.position, url: row.url, title: row.title, cost: row.cost };
+}
+
+// --- Async rank-check tasks (Standard queue + polling) ---
+
+export interface RankCheckTask {
+  task_id: string;
+  keyword_id: number;
+  domain: string;
+}
+
+export async function addRankCheckTasks(rows: { task_id: string; keyword_id: number; domain: string }[]): Promise<void> {
+  if (rows.length === 0) return;
+  const now = Date.now();
+  for (const r of rows) {
+    await query(
+      'INSERT INTO rank_check_tasks (task_id, keyword_id, domain, posted_at, status) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (task_id) DO NOTHING',
+      [r.task_id, r.keyword_id, r.domain, now, 'pending']
+    );
+  }
+}
+
+export async function getPendingRankCheckTasks(domain?: string): Promise<RankCheckTask[]> {
+  const rows = domain
+    ? (await query<{ task_id: string; keyword_id: number; domain: string }>(
+        "SELECT task_id, keyword_id, domain FROM rank_check_tasks WHERE status = 'pending' AND domain = $1",
+        [domain]
+      )).rows
+    : (await query<{ task_id: string; keyword_id: number; domain: string }>(
+        "SELECT task_id, keyword_id, domain FROM rank_check_tasks WHERE status = 'pending'"
+      )).rows;
+  return rows.map((r) => ({ task_id: r.task_id, keyword_id: Number(r.keyword_id), domain: r.domain }));
+}
+
+export async function deleteRankCheckTask(taskId: string): Promise<void> {
+  await query('DELETE FROM rank_check_tasks WHERE task_id = $1', [taskId]);
+}
+
+export async function countPendingRankCheckTasks(domain?: string): Promise<number> {
+  const row = domain
+    ? (await query<{ n: string }>("SELECT COUNT(*)::int AS n FROM rank_check_tasks WHERE status = 'pending' AND domain = $1", [domain])).rows[0]
+    : (await query<{ n: string }>("SELECT COUNT(*)::int AS n FROM rank_check_tasks WHERE status = 'pending'")).rows[0];
+  return Number(row?.n ?? 0);
 }
 
 // --- Referring Domains ---
