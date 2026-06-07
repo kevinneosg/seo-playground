@@ -12,7 +12,7 @@ export default function UpdateBanner() {
   useEffect(() => {
     if (sessionStorage.getItem(DISMISS_KEY)) return;
 
-    fetch('/api/update-check')
+    fetch(apiUrl('/api/update-check'))
       .then((r) => r.json())
       .then((data: { hasUpdate: boolean }) => {
         if (data.hasUpdate) setShow(true);
