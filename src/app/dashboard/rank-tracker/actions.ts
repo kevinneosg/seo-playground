@@ -36,7 +36,7 @@ async function checkKeywordsBatch(
 
     let res: Response;
     try {
-      res = await fetch('https://api.dataforseo.com/v3/serp/google/organic/live/regular', {
+      res = await fetch('https://api.dataforseo.com/v3/serp/google/organic/live/advanced', {
         method: 'POST',
         headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(

@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
     if (!readyIds.has(pt.task_id)) continue;
     try {
       const getRes = await fetch(
-        `https://api.dataforseo.com/v3/serp/google/organic/task_get/regular/${pt.task_id}`,
+        `https://api.dataforseo.com/v3/serp/google/organic/task_get/advanced/${pt.task_id}`,
         { headers: { Authorization: `Basic ${auth}` }, signal: AbortSignal.timeout(15_000) },
       );
       if (!getRes.ok) continue; // transient → retry next poll
