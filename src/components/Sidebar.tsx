@@ -9,6 +9,7 @@ import {
   Sparkles, Target, Layers, Network, LineChart, Tag, ScanText,
   History, Copy, BarChart3, BookOpen, Server,
 } from 'lucide-react';
+import { assetUrl } from '@/lib/api-base';
 
 const sections = [
   {
@@ -110,7 +111,7 @@ export default function Sidebar() {
         <Link href="/dashboard" className="flex items-center gap-2.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/sba-emblem-white.png"
+            src={assetUrl('/sba-emblem-white.png')}
             alt="Scholar Basketball Academy"
             width={26}
             height={26}

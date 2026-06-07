@@ -293,7 +293,7 @@ export default async function KeywordOverviewPage({ searchParams }: { searchPara
 
       {/* Results table */}
       {hasQuery && !error && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div id="results" className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <h2 className="text-xs font-black uppercase tracking-widest text-slate-400">Results</h2>

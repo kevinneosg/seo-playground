@@ -41,13 +41,26 @@ export default async function RankTrackerPage({ searchParams }: { searchParams: 
   // Keywords for the active domain
   const keywords = activeDomain ? allKeywords.filter((k) => k.domain === activeDomain) : [];
 
-  const rows = await Promise.all(keywords.map(async (kw) => {
-    const history = await getRankHistory(kw.id, 30);
-    const latest = await getLatestRankCheck(kw.id);
-    const sorted = [...history].sort((a, b) => a.date.localeCompare(b.date));
-    const previous = sorted.length >= 2 ? sorted[sorted.length - 2] : null;
-    return { kw, history, latest, previous };
-  }));
+  const ROW_FETCH_CONCURRENCY = 20;
+  const rows: Array<{
+    kw: typeof keywords[number];
+    history: Awaited<ReturnType<typeof getRankHistory>>;
+    latest: Awaited<ReturnType<typeof getLatestRankCheck>>;
+    previous: Awaited<ReturnType<typeof getRankHistory>>[number] | null;
+  }> = [];
+  for (let i = 0; i < keywords.length; i += ROW_FETCH_CONCURRENCY) {
+    const chunk = keywords.slice(i, i + ROW_FETCH_CONCURRENCY);
+    const chunkRows = await Promise.all(chunk.map(async (kw) => {
+      const [history, latest] = await Promise.all([
+        getRankHistory(kw.id, 30),
+        getLatestRankCheck(kw.id),
+      ]);
+      const sorted = [...history].sort((a, b) => a.date.localeCompare(b.date));
+      const previous = sorted.length >= 2 ? sorted[sorted.length - 2] : null;
+      return { kw, history, latest, previous };
+    }));
+    rows.push(...chunkRows);
+  }
 
   return (
     <div className="space-y-6 pb-12">

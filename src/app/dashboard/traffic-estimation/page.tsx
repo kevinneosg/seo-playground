@@ -123,7 +123,7 @@ export default async function TrafficEstimationPage({ searchParams }: { searchPa
       {error && <div className="bg-red-50 dark:bg-red-950 border border-red-100 text-red-600 dark:text-red-400 text-sm rounded-xl px-4 py-3">{error}</div>}
 
       {(historyId || rawTargets) && !error && (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+        <div id="results" className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
             <span className="text-xs font-black uppercase tracking-widest text-slate-400">{items.length} domains</span>
             <div className="flex items-center gap-3">

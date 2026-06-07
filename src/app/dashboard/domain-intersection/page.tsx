@@ -81,7 +81,7 @@ function KdBadge({ kd }: { kd: number | undefined }) {
 
 export default async function DomainIntersectionPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const creds = await getCredentials();
-  const history = await getDomainIntersectionHistory();
+  let history = await getDomainIntersectionHistory();
   const defaultLocation = await getSetting('default_location') ?? 'France';
   const defaultLanguage = await getSetting('default_language') ?? 'French';
   const defaultDomain = await getSetting('default_domain') ?? '';
@@ -114,6 +114,7 @@ export default async function DomainIntersectionPage({ searchParams }: { searchP
         id, ts: Date.now(), target1, target2, location, language,
         count: items.length, totalCount: total, cost,
       }, items);
+      history = await getDomainIntersectionHistory();
     } catch (e) {
       error = String(e);
     }

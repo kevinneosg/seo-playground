@@ -226,7 +226,7 @@ export default async function WhoisPage({ searchParams }: { searchParams: Promis
       {hasQuery && !error && result && (
         <>
           {/* Header */}
-          <div className="flex items-center gap-4 flex-wrap">
+          <div id="results" className="flex items-center gap-4 flex-wrap">
             <div className="flex items-center gap-2">
               <span className="text-xs font-black uppercase tracking-widest text-slate-400">Domain</span>
               <span className="font-mono font-bold text-slate-900 dark:text-white">{result.domain ?? displayDomain}</span>
