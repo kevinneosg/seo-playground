@@ -7,7 +7,7 @@ import {
 } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { matchOrganicRank, type SerpItem } from './rank-match';
+import { matchOrganicRank, locationParam, type SerpItem } from './rank-match';
 
 interface SerpResponse {
   tasks?: Array<{
@@ -42,7 +42,7 @@ async function checkKeywordsBatch(
         body: JSON.stringify(
           batch.map((kw) => ({
             keyword: kw.keyword,
-            location_name: kw.location,
+            ...locationParam(kw.location),
             language_name: kw.language,
             depth,
           })),
@@ -101,7 +101,7 @@ async function enqueueRankChecks(
         body: JSON.stringify(
           batch.map((kw) => ({
             keyword: kw.keyword,
-            location_name: kw.location,
+            ...locationParam(kw.location),
             language_name: kw.language,
             depth,
             priority: 1, // Standard queue
