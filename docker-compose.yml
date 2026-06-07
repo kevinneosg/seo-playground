@@ -3,9 +3,19 @@ services:
     build: .
     ports:
       - "3000:3000"
-    volumes:
-      # SQLite database — persisted in ./data/ next to this file
-      - ./data:/data
     environment:
-      DB_PATH: /data/seo-playground.db
+      DATABASE_URL: postgres://postgres:postgres@db:5432/seo
+      PGSSL: disable
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: seo
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
     restart: unless-stopped

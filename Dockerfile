@@ -2,9 +2,6 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
 
-# Native build tools required by better-sqlite3
-RUN apk add --no-cache python3 make g++
-
 COPY package.json package-lock.json* ./
 RUN npm ci
 
@@ -24,7 +21,8 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
-ENV DB_PATH=/data/seo-playground.db
+# DATABASE_URL is injected at runtime (Railway). The app self-initializes its
+# Postgres schema lazily on first query — no separate migrate step required.
 
 RUN addgroup --system --gid 1001 nodejs \
  && adduser  --system --uid 1001 nextjs
@@ -35,9 +33,6 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Public folder (if any)
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
-
-# Persistent data directory (mounted as a volume)
-RUN mkdir -p /data && chown nextjs:nodejs /data
 
 USER nextjs
 
