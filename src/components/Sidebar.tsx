@@ -7,9 +7,17 @@ import {
   TrendingUp, Link2, Users, BarChart2, Activity, GitMerge, Clock, FolderKanban, Anchor,
   Gauge, Lightbulb, BrainCircuit, MessageSquare, Star, Flame, Cpu, ShieldCheck, Grid3X3,
   Sparkles, Target, Layers, Network, LineChart, Tag, ScanText,
-  History, Copy, BarChart3, BookOpen, Server,
+  History, Copy, BarChart3, BookOpen, Server, Megaphone, ExternalLink,
 } from 'lucide-react';
 import { assetUrl } from '@/lib/api-base';
+
+// Cross-portal links to the sibling SBA apps. Both sit under
+// *.scholarbasketball.com and share the admin SSO cookie, so these jump
+// straight through. External apps → plain anchors (full page load).
+const portalLinks = [
+  { name: 'Marketing Dashboard', href: 'https://marketing.scholarbasketball.com', icon: Megaphone },
+  { name: 'Admin Portal', href: 'https://join.scholarbasketball.com/admin', icon: ShieldCheck },
+];
 
 const sections = [
   {
@@ -165,6 +173,26 @@ export default function Sidebar() {
           </div>
         ))}
       </nav>
+
+      {/* Cross-portal links to the sibling SBA apps */}
+      <div className="shrink-0 border-t border-white/10 px-3 py-3">
+        <p className="font-display text-[11px] font-bold text-sba-orange uppercase tracking-[0.18em] px-3 mb-1.5">
+          Portals
+        </p>
+        <div className="space-y-px">
+          {portalLinks.map((item) => (
+            <a
+              key={item.name}
+              href={item.href}
+              className="group flex items-center px-3 py-2 text-sm rounded-lg text-slate-300/80 hover:bg-white/5 hover:text-white font-medium transition-all duration-150"
+            >
+              <item.icon className="mr-2.5 h-[15px] w-[15px] shrink-0 text-slate-400/70 group-hover:text-slate-200" />
+              {item.name}
+              <ExternalLink className="ml-auto h-3 w-3 shrink-0 text-slate-500/60 group-hover:text-slate-300" aria-hidden="true" />
+            </a>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
