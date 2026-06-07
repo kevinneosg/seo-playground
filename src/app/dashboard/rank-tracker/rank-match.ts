@@ -5,6 +5,7 @@
 export interface SerpItem {
   type: string;
   rank_absolute: number;
+  rank_group: number;
   url?: string;
   title?: string;
   domain?: string;
@@ -17,6 +18,10 @@ export function cleanDomain(d: string): string {
 /**
  * Finds the tracked domain's organic rank within a SERP item list.
  * Shared so the live and async paths match identically.
+ *
+ * Returns `rank_group` (position among ORGANIC results) — the number users
+ * mean by "we rank #N". NOT `rank_absolute`, which counts the local/map pack,
+ * ads, snippets, etc. and overstates the position.
  */
 export function matchOrganicRank(
   items: SerpItem[],
@@ -29,5 +34,5 @@ export function matchOrganicRank(
     const d = cleanDomain(item.domain ?? item.url ?? '').split('/')[0];
     return d === domain || d.endsWith('.' + domain);
   });
-  return { rank: hit?.rank_absolute ?? null, url: hit?.url ?? null, title: hit?.title ?? null };
+  return { rank: hit?.rank_group ?? null, url: hit?.url ?? null, title: hit?.title ?? null };
 }
