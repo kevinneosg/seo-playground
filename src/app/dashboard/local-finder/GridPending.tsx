@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import type { GridQueueMode } from '@/lib/db';
+import { apiUrl } from '@/lib/api-base';
 
 interface Props {
   searchId: string;
@@ -44,7 +45,7 @@ export default function GridPending({ searchId, totalPoints, queueMode, keyword,
     setChecking(true);
     setError(null);
     try {
-      const res = await fetch(`/api/grid-check/${searchId}`);
+      const res = await fetch(apiUrl(`/api/grid-check/${searchId}`));
       const data = await res.json() as { status: string; ready?: number; total?: number; error?: string };
       setLastChecked(new Date());
       if (data.status === 'done') {
