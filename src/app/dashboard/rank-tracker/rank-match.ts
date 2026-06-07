@@ -16,6 +16,19 @@ export function cleanDomain(d: string): string {
 }
 
 /**
+ * Build the DataForSEO location field. A "lat,lng" value → location_coordinate
+ * (a precise point reflects the real localized SERP); otherwise location_name.
+ * Country-level names (e.g. "Singapore") crawl from a spot that can mis-rank vs
+ * what users in-country actually see, so a coordinate is preferred.
+ */
+export function locationParam(location: string): { location_coordinate: string } | { location_name: string } {
+  const v = location.trim();
+  return /^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?/.test(v)
+    ? { location_coordinate: v }
+    : { location_name: location };
+}
+
+/**
  * Finds the tracked domain's organic rank within a SERP item list.
  * Shared so the live and async paths match identically.
  *
