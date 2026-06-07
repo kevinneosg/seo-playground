@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import Link from 'next/link';
 import {
   getCredentials, getTrackedKeywords, getRankHistory, getLatestRankCheck,
-  getSetting, getTargetDomains,
+  getSetting, getTargetDomains, countPendingRankCheckTasks,
 } from '@/lib/db';
 import { LOCATIONS, LANGUAGES } from '@/lib/geo-options';
 import {
@@ -11,6 +11,7 @@ import {
   saveDepthAction, addDomainAction, removeDomainAction, checkDomainAction,
 } from './actions';
 import KeywordRow from './KeywordRow';
+import RankCheckPending from './RankCheckPending';
 import PendingButton from '@/components/PendingButton';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -40,6 +41,10 @@ export default async function RankTrackerPage({ searchParams }: { searchParams: 
 
   // Keywords for the active domain
   const keywords = activeDomain ? allKeywords.filter((k) => k.domain === activeDomain) : [];
+
+  // Pending async rank-check tasks — global (domain-agnostic) so a "Check All"
+  // spanning multiple domains stays visible even while viewing one domain's tab.
+  const pendingCount = await countPendingRankCheckTasks();
 
   const ROW_FETCH_CONCURRENCY = 20;
   const rows: Array<{
@@ -110,6 +115,11 @@ export default async function RankTrackerPage({ searchParams }: { searchParams: 
         <div className="bg-amber-50 border border-amber-200 text-amber-700 rounded-2xl px-6 py-4 text-sm font-medium">
           Configure your DataForSEO credentials in Settings to enable rank checking.
         </div>
+      )}
+
+      {/* ── Async check progress ───────────────────────────────────────────── */}
+      {pendingCount > 0 && (
+        <RankCheckPending total={pendingCount} />
       )}
 
       {/* ── Domain tabs ────────────────────────────────────────────────────── */}

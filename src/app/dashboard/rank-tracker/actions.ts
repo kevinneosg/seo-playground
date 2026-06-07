@@ -3,18 +3,11 @@
 import {
   getCredentials, getTrackedKeywords, addTrackedKeyword,
   removeTrackedKeyword, saveRankCheck, getSetting, setSetting,
-  addTargetDomain, removeTargetDomain,
+  addTargetDomain, removeTargetDomain, addRankCheckTasks,
 } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-
-interface SerpItem {
-  type: string;
-  rank_absolute: number;
-  url?: string;
-  title?: string;
-  domain?: string;
-}
+import { matchOrganicRank, type SerpItem } from './rank-match';
 
 interface SerpResponse {
   tasks?: Array<{
@@ -22,10 +15,6 @@ interface SerpResponse {
     cost?: number;
     result?: Array<{ items?: SerpItem[] }>;
   }>;
-}
-
-function cleanDomain(d: string) {
-  return d.toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/$/, '');
 }
 
 /**
@@ -77,16 +66,65 @@ async function checkKeywordsBatch(
       const items = task?.result?.[0]?.items ?? [];
       const cost = task?.cost ?? null;
 
-      // Split by '/' so a tracked domain like "example.com/page" still matches
-      const domain = cleanDomain(kw.domain).split('/')[0];
-      const hit = items.find((item) => {
-        if (item.type !== 'organic') return false;
-        const d = cleanDomain(item.domain ?? item.url ?? '').split('/')[0];
-        return d === domain || d.endsWith('.' + domain);
-      });
-
-      await saveRankCheck(kw.id, hit?.rank_absolute ?? null, hit?.url ?? null, hit?.title ?? null, cost);
+      const { rank, url, title } = matchOrganicRank(items, kw.domain);
+      await saveRankCheck(kw.id, rank, url, title, cost);
     }
+  }
+}
+
+/**
+ * Async path for bulk checks: posts all keywords to DataForSEO's Standard
+ * task-queue (priority 1) and persists the returned task IDs. A poll route
+ * (/api/rank-check) later fetches results and saves them. Returns immediately.
+ */
+async function enqueueRankChecks(
+  keywords: Array<{ id: number; keyword: string; domain: string; location: string; language: string }>,
+) {
+  const creds = await getCredentials();
+  if (!creds || keywords.length === 0) return;
+
+  const depth = parseInt(await getSetting('rank_tracker_depth') ?? '100', 10);
+  const auth = btoa(`${creds.login}:${creds.pass}`);
+  const BATCH = 100; // DataForSEO max tasks per request
+
+  for (let offset = 0; offset < keywords.length; offset += BATCH) {
+    const batch = keywords.slice(offset, offset + BATCH);
+
+    let res: Response;
+    try {
+      res = await fetch('https://api.dataforseo.com/v3/serp/google/organic/task_post', {
+        method: 'POST',
+        headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          batch.map((kw) => ({
+            keyword: kw.keyword,
+            location_name: kw.location,
+            language_name: kw.language,
+            depth,
+            priority: 1, // Standard queue
+            tag: String(kw.id),
+          })),
+        ),
+        signal: AbortSignal.timeout(30_000),
+      });
+    } catch {
+      continue;
+    }
+    if (!res.ok) continue;
+
+    const data = await res.json() as {
+      tasks?: Array<{ id?: string; status_code?: number }>;
+    };
+
+    const toAdd: Array<{ task_id: string; keyword_id: number; domain: string }> = [];
+    for (let i = 0; i < batch.length; i++) {
+      const kw = batch[i];
+      const task = data.tasks?.[i];
+      if (task?.status_code === 20100 && task.id) {
+        toAdd.push({ task_id: task.id, keyword_id: kw.id, domain: kw.domain });
+      }
+    }
+    await addRankCheckTasks(toAdd);
   }
 }
 
@@ -155,7 +193,8 @@ export async function checkOneAction(formData: FormData) {
 export async function checkAllAction(formData: FormData) {
   const domain = (formData.get('domain') as string | null)?.trim() ?? '';
   const keywords = await getTrackedKeywords();
-  await checkKeywordsBatch(keywords);
+  await enqueueRankChecks(keywords);
+  revalidatePath('/dashboard/rank-tracker');
   redirect(domain ? `/dashboard/rank-tracker?domain=${encodeURIComponent(domain)}` : '/dashboard/rank-tracker');
 }
 
@@ -163,6 +202,7 @@ export async function checkDomainAction(formData: FormData) {
   const domain = formData.get('domain') as string;
   if (!domain) return;
   const keywords = (await getTrackedKeywords()).filter((k) => k.domain === domain);
-  await checkKeywordsBatch(keywords);
+  await enqueueRankChecks(keywords);
+  revalidatePath('/dashboard/rank-tracker');
   redirect(`/dashboard/rank-tracker?domain=${encodeURIComponent(domain)}`);
 }
