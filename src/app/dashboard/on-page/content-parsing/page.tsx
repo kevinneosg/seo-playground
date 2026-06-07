@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic';
+
+import Link from 'next/link';
 import { getCredentials } from '@/lib/db';
 import SearchForm from '@/components/SearchForm';
 
@@ -76,7 +79,7 @@ function scoreLabel(score?: number) {
 }
 
 export default async function ContentParsingPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const creds = getCredentials();
+  const creds = await getCredentials();
   const params = await searchParams;
   const rawUrl = params.url?.trim() ?? '';
 
@@ -102,7 +105,7 @@ export default async function ContentParsingPage({ searchParams }: { searchParam
     <div className="space-y-6">
       <div>
         <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-400 mb-1">
-          <a href="/dashboard/on-page" className="hover:text-slate-600 transition-colors">On Page</a>
+          <Link href="/dashboard/on-page" className="hover:text-slate-600 transition-colors">On Page</Link>
           <span className="text-slate-200">/</span>
           <span className="text-slate-600">Content Parsing</span>
         </div>

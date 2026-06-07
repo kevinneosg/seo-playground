@@ -147,11 +147,11 @@ function formatDate(iso?: string) {
 // ---- Page ----
 
 export default async function AiOptimizationPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const creds = getCredentials();
+  const creds = await getCredentials();
   const params = await searchParams;
 
-  const defaultLocation = getSetting('default_location') ?? 'France';
-  const defaultLanguage = getSetting('default_language') ?? 'French';
+  const defaultLocation = await getSetting('default_location') ?? 'France';
+  const defaultLanguage = await getSetting('default_language') ?? 'French';
 
   const targetValue = (params.target ?? '').trim();
   const targetType = (params.target_type === 'domain' ? 'domain' : 'keyword') as 'keyword' | 'domain';

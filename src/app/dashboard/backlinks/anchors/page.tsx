@@ -45,9 +45,9 @@ async function fetchAnchors(target: string, limit: number, login: string, pass: 
 }
 
 export default async function AnchorsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const creds = getCredentials();
-  const history = getAnchorsHistory();
-  const defaultDomain = getSetting('default_domain') ?? '';
+  const creds = await getCredentials();
+  const history = await getAnchorsHistory();
+  const defaultDomain = await getSetting('default_domain') ?? '';
 
   const params = await searchParams;
   const historyId = params.history_id;
@@ -60,7 +60,7 @@ export default async function AnchorsPage({ searchParams }: { searchParams: Prom
   let cost = 0;
 
   if (historyId) {
-    items = getAnchorsResults<AnchorItem>(historyId) ?? [];
+    items = await getAnchorsResults<AnchorItem>(historyId) ?? [];
     const entry = history.find((h) => h.id === historyId);
     total = entry?.total ?? items.length;
   } else if (target && creds) {
@@ -73,7 +73,7 @@ export default async function AnchorsPage({ searchParams }: { searchParams: Prom
         total = result.total;
         cost = result.cost;
         const id = crypto.randomUUID();
-        saveAnchorsSearch({ id, ts: Date.now(), target, cost, total }, items);
+        await saveAnchorsSearch({ id, ts: Date.now(), target, cost, total }, items);
       }
     } catch (e) {
       error = String(e);

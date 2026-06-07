@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic';
+
+import Link from 'next/link';
 import {
   getCredentials,
   getBacklinksHistory,
@@ -180,7 +183,7 @@ function DRBadge({ value }: { value?: number }) {
 // ---- Page ----
 
 export default async function BacklinksPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const creds = getCredentials();
+  const creds = await getCredentials();
   const params = await searchParams;
   const historyId = params.history_id;
 
@@ -199,13 +202,13 @@ export default async function BacklinksPage({ searchParams }: { searchParams: Pr
   let activeEntry: BacklinksSearchEntry | null = null;
 
   if (historyId) {
-    const savedSummary = getBacklinksResult<BacklinksSummary>(historyId);
-    const savedLinks = getBacklinksLinks<BacklinkItem>(historyId);
+    const savedSummary = await getBacklinksResult<BacklinksSummary>(historyId);
+    const savedLinks = await getBacklinksLinks<BacklinkItem>(historyId);
     if (savedSummary) {
       summary = savedSummary;
       links = savedLinks ?? [];
       isFromHistory = true;
-      const history = getBacklinksHistory();
+      const history = await getBacklinksHistory();
       activeEntry = history.find((e) => e.id === historyId) ?? null;
       linksTotal = activeEntry?.linksTotal ?? links.length;
     } else {
@@ -241,13 +244,13 @@ export default async function BacklinksPage({ searchParams }: { searchParams: Pr
             cost,
             linksTotal,
           };
-          saveBacklinksSearch(entry, summary ?? {}, links, linksTotal);
+          await saveBacklinksSearch(entry, summary ?? {}, links, linksTotal);
         }
       }
     }
   }
 
-  const history = getBacklinksHistory();
+  const history = await getBacklinksHistory();
   const hasQuery = historyId || target;
   const displayTarget = activeEntry?.target ?? cleanTarget(target);
 
@@ -519,7 +522,7 @@ export default async function BacklinksPage({ searchParams }: { searchParams: Pr
             {history.map((entry) => {
               const isActive = entry.id === historyId;
               return (
-                <a key={entry.id} href={`/dashboard/backlinks?history_id=${entry.id}#results`}
+                <Link key={entry.id} href={`/dashboard/backlinks?history_id=${entry.id}#results`}
                   className={`flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 transition-colors ${isActive ? 'bg-blue-50' : ''}`}>
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm font-bold font-mono truncate ${isActive ? 'text-blue-700' : 'text-slate-800'}`}>{entry.target}</p>
@@ -529,7 +532,7 @@ export default async function BacklinksPage({ searchParams }: { searchParams: Pr
                     </p>
                   </div>
                   <span className="shrink-0 text-[11px] text-slate-400">{formatDate(entry.ts)}</span>
-                </a>
+                </Link>
               );
             })}
           </div>

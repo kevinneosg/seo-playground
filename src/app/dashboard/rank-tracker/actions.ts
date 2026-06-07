@@ -35,10 +35,10 @@ function cleanDomain(d: string) {
 async function checkKeywordsBatch(
   keywords: Array<{ id: number; keyword: string; domain: string; location: string; language: string }>,
 ) {
-  const creds = getCredentials();
+  const creds = await getCredentials();
   if (!creds || keywords.length === 0) return;
 
-  const depth = parseInt(getSetting('rank_tracker_depth') ?? '100', 10);
+  const depth = parseInt(await getSetting('rank_tracker_depth') ?? '100', 10);
   const auth = btoa(`${creds.login}:${creds.pass}`);
   const BATCH = 100; // DataForSEO max tasks per request
 
@@ -85,7 +85,7 @@ async function checkKeywordsBatch(
         return d === domain || d.endsWith('.' + domain);
       });
 
-      saveRankCheck(kw.id, hit?.rank_absolute ?? null, hit?.url ?? null, hit?.title ?? null, cost);
+      await saveRankCheck(kw.id, hit?.rank_absolute ?? null, hit?.url ?? null, hit?.title ?? null, cost);
     }
   }
 }
@@ -93,14 +93,14 @@ async function checkKeywordsBatch(
 export async function saveDepthAction(formData: FormData) {
   const depth = formData.get('rank_tracker_depth') as string;
   const valid = ['10', '20', '50', '100'];
-  if (valid.includes(depth)) setSetting('rank_tracker_depth', depth);
+  if (valid.includes(depth)) await setSetting('rank_tracker_depth', depth);
   revalidatePath('/dashboard/rank-tracker');
 }
 
 export async function addDomainAction(formData: FormData) {
   const domain = (formData.get('domain') as string)?.trim();
   if (!domain) return;
-  addTargetDomain(domain);
+  await addTargetDomain(domain);
   revalidatePath('/dashboard/rank-tracker');
   redirect(`/dashboard/rank-tracker?domain=${encodeURIComponent(domain.toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, ''))}`);
 }
@@ -108,7 +108,7 @@ export async function addDomainAction(formData: FormData) {
 export async function removeDomainAction(formData: FormData) {
   const domain = formData.get('domain') as string;
   if (!domain) return;
-  removeTargetDomain(domain);
+  await removeTargetDomain(domain);
   redirect('/dashboard/rank-tracker');
 }
 
@@ -119,14 +119,14 @@ export async function addKeywordAction(formData: FormData) {
   const language = (formData.get('language') as string)?.trim() || 'French';
 
   if (!domain) return;
-  addTargetDomain(domain);
+  await addTargetDomain(domain);
 
   const kwList = raw.split('\n').map((k) => k.trim()).filter(Boolean).slice(0, 50);
   if (kwList.length === 0) return;
 
   const toCheck: Array<{ id: number; keyword: string; domain: string; location: string; language: string }> = [];
   for (const keyword of kwList) {
-    const id = addTrackedKeyword(keyword, domain, location, language);
+    const id = await addTrackedKeyword(keyword, domain, location, language);
     toCheck.push({ id, keyword, domain, location, language });
   }
 
@@ -137,7 +137,7 @@ export async function addKeywordAction(formData: FormData) {
 export async function removeKeywordAction(formData: FormData) {
   const id = Number(formData.get('id'));
   if (!id) return;
-  removeTrackedKeyword(id);
+  await removeTrackedKeyword(id);
   revalidatePath('/dashboard/rank-tracker');
 }
 
@@ -154,7 +154,7 @@ export async function checkOneAction(formData: FormData) {
 
 export async function checkAllAction(formData: FormData) {
   const domain = (formData.get('domain') as string | null)?.trim() ?? '';
-  const keywords = getTrackedKeywords();
+  const keywords = await getTrackedKeywords();
   await checkKeywordsBatch(keywords);
   redirect(domain ? `/dashboard/rank-tracker?domain=${encodeURIComponent(domain)}` : '/dashboard/rank-tracker');
 }
@@ -162,7 +162,7 @@ export async function checkAllAction(formData: FormData) {
 export async function checkDomainAction(formData: FormData) {
   const domain = formData.get('domain') as string;
   if (!domain) return;
-  const keywords = getTrackedKeywords().filter((k) => k.domain === domain);
+  const keywords = (await getTrackedKeywords()).filter((k) => k.domain === domain);
   await checkKeywordsBatch(keywords);
   redirect(`/dashboard/rank-tracker?domain=${encodeURIComponent(domain)}`);
 }

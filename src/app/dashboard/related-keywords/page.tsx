@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic';
+
+import Link from 'next/link';
 import {
   getCredentials, getSetting,
   getRelatedKwHistory, saveRelatedKwSearch, getRelatedKwResults,
@@ -84,12 +87,12 @@ function formatDate(ts: number) {
 }
 
 export default async function RelatedKeywordsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const creds = getCredentials();
+  const creds = await getCredentials();
   const params = await searchParams;
   const historyId = params.history_id;
 
-  const defaultLocation = getSetting('default_location') ?? 'France';
-  const defaultLanguage = getSetting('default_language') ?? 'French';
+  const defaultLocation = await getSetting('default_location') ?? 'France';
+  const defaultLanguage = await getSetting('default_language') ?? 'French';
 
   const keyword = params.keyword?.trim() ?? '';
   const location = params.location ?? defaultLocation;
@@ -104,11 +107,11 @@ export default async function RelatedKeywordsPage({ searchParams }: { searchPara
   let activeEntry: RelatedKwSearchEntry | null = null;
 
   if (historyId) {
-    const saved = getRelatedKwResults<RelatedKeywordItem>(historyId);
+    const saved = await getRelatedKwResults<RelatedKeywordItem>(historyId);
     if (saved) {
       items = saved;
       isFromHistory = true;
-      const history = getRelatedKwHistory();
+      const history = await getRelatedKwHistory();
       activeEntry = history.find((e) => e.id === historyId) ?? null;
     } else {
       error = "Cette recherche n'est plus disponible.";
@@ -137,12 +140,12 @@ export default async function RelatedKeywordsPage({ searchParams }: { searchPara
           count: items.length,
           cost,
         };
-        saveRelatedKwSearch(entry, items);
+        await saveRelatedKwSearch(entry, items);
       }
     }
   }
 
-  const history = getRelatedKwHistory();
+  const history = await getRelatedKwHistory();
   const displayKeyword = activeEntry?.keyword ?? keyword;
   const displayLocation = activeEntry?.location ?? location;
   const displayLanguage = activeEntry?.language ?? language;
@@ -311,7 +314,7 @@ export default async function RelatedKeywordsPage({ searchParams }: { searchPara
             {history.map((entry) => {
               const isActive = entry.id === historyId;
               return (
-                <a key={entry.id} href={`/dashboard/related-keywords?history_id=${entry.id}#results`}
+                <Link key={entry.id} href={`/dashboard/related-keywords?history_id=${entry.id}#results`}
                   className={`flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 transition-colors ${isActive ? 'bg-blue-50' : ''}`}>
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm font-medium truncate ${isActive ? 'text-blue-700' : 'text-slate-800'}`}>{entry.keyword}</p>
@@ -322,7 +325,7 @@ export default async function RelatedKeywordsPage({ searchParams }: { searchPara
                     </p>
                   </div>
                   <span className="shrink-0 text-[11px] text-slate-400">{formatDate(entry.ts)}</span>
-                </a>
+                </Link>
               );
             })}
           </div>

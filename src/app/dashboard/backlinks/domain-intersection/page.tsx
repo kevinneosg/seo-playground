@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic';
+
+import Link from 'next/link';
 import { getCredentials, getSetting, getBlDomIntHistory, saveBlDomInt, getBlDomIntResults, type BlDomIntEntry } from '@/lib/db';
 import SearchForm from '@/components/SearchForm';
 import ExportCSVButton from '@/components/ExportCSVButton';
@@ -37,9 +40,9 @@ function fmt(n?: number) { return n != null ? n.toLocaleString('en-GB') : '—';
 function formatDate(ts: number) { return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); }
 
 export default async function DomainIntersectionPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const creds = getCredentials();
+  const creds = await getCredentials();
   const params = await searchParams;
-  const defaultDomain = getSetting('default_domain') ?? '';
+  const defaultDomain = await getSetting('default_domain') ?? '';
   const rawTarget1 = params.target1?.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '') ?? '';
   const rawTarget2 = params.target2?.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '') ?? '';
   const historyId = params.history_id;
@@ -50,8 +53,8 @@ export default async function DomainIntersectionPage({ searchParams }: { searchP
   let activeEntry: BlDomIntEntry | null = null;
 
   if (historyId) {
-    const saved = getBlDomIntResults<DomIntItem>(historyId);
-    if (saved) { items = saved; activeEntry = getBlDomIntHistory().find((e) => e.id === historyId) ?? null; }
+    const saved = await getBlDomIntResults<DomIntItem>(historyId);
+    if (saved) { items = saved; activeEntry = (await getBlDomIntHistory()).find((e) => e.id === historyId) ?? null; }
     else error = 'Search no longer available.';
   } else if (rawTarget1 && rawTarget2) {
     if (!creds) { error = 'DataForSEO credentials missing. Configure them in Settings.'; }
@@ -60,12 +63,12 @@ export default async function DomainIntersectionPage({ searchParams }: { searchP
       items = result.items; cost = result.cost; error = result.error ?? null;
       if (!error && items.length > 0) {
         const entry: BlDomIntEntry = { id: crypto.randomUUID().slice(0, 8), ts: Date.now(), target1: rawTarget1, target2: rawTarget2, count: items.length, cost };
-        saveBlDomInt(entry, items);
+        await saveBlDomInt(entry, items);
       }
     }
   }
 
-  const history = getBlDomIntHistory();
+  const history = await getBlDomIntHistory();
   const t1 = activeEntry?.target1 ?? rawTarget1;
   const t2 = activeEntry?.target2 ?? rawTarget2;
 
@@ -82,7 +85,7 @@ export default async function DomainIntersectionPage({ searchParams }: { searchP
     <div className="space-y-6">
       <div>
         <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-400 mb-1">
-          <a href="/dashboard/backlinks" className="hover:text-slate-600 transition-colors">Backlinks</a>
+          <Link href="/dashboard/backlinks" className="hover:text-slate-600 transition-colors">Backlinks</Link>
           <span className="text-slate-200">/</span>
           <span className="text-slate-600">Domain Intersection</span>
         </div>
@@ -163,7 +166,7 @@ export default async function DomainIntersectionPage({ searchParams }: { searchP
             {history.map((entry) => {
               const isActive = entry.id === historyId;
               return (
-                <a key={entry.id} href={`/dashboard/backlinks/domain-intersection?history_id=${entry.id}#results`}
+                <Link key={entry.id} href={`/dashboard/backlinks/domain-intersection?history_id=${entry.id}#results`}
                   className={`flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${isActive ? 'bg-blue-50 dark:bg-blue-950' : ''}`}>
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm font-medium font-mono truncate ${isActive ? 'text-blue-700 dark:text-blue-400' : 'text-slate-800 dark:text-slate-200'}`}>
@@ -172,7 +175,7 @@ export default async function DomainIntersectionPage({ searchParams }: { searchP
                     <p className="text-[11px] text-slate-400 mt-0.5">{entry.count} common domains{entry.cost !== undefined ? ` · $${entry.cost.toFixed(4)}` : ''}</p>
                   </div>
                   <span className="shrink-0 text-[11px] text-slate-400">{formatDate(entry.ts)}</span>
-                </a>
+                </Link>
               );
             })}
           </div>

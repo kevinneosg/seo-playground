@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 
+import Link from 'next/link';
 import {
   getCredentials, getTrackedKeywords, getRankHistory, getLatestRankCheck,
   getSetting, getTargetDomains,
@@ -23,14 +24,14 @@ const inputCls = 'w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-x
 export default async function RankTrackerPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
 
-  const creds = getCredentials();
-  const defaultLocation = getSetting('default_location') ?? 'France';
-  const defaultLanguage = getSetting('default_language') ?? 'French';
-  const rankDepth = getSetting('rank_tracker_depth') ?? '100';
+  const creds = await getCredentials();
+  const defaultLocation = await getSetting('default_location') ?? 'France';
+  const defaultLanguage = await getSetting('default_language') ?? 'French';
+  const rankDepth = await getSetting('rank_tracker_depth') ?? '100';
 
   // Merge target_domains table with unique domains from tracked keywords
-  const savedDomains = getTargetDomains();
-  const allKeywords = getTrackedKeywords();
+  const savedDomains = await getTargetDomains();
+  const allKeywords = await getTrackedKeywords();
   const kwDomains = [...new Set(allKeywords.map((k) => k.domain))];
   const domains = [...new Set([...savedDomains, ...kwDomains])];
 
@@ -40,13 +41,13 @@ export default async function RankTrackerPage({ searchParams }: { searchParams: 
   // Keywords for the active domain
   const keywords = activeDomain ? allKeywords.filter((k) => k.domain === activeDomain) : [];
 
-  const rows = keywords.map((kw) => {
-    const history = getRankHistory(kw.id, 30);
-    const latest = getLatestRankCheck(kw.id);
+  const rows = await Promise.all(keywords.map(async (kw) => {
+    const history = await getRankHistory(kw.id, 30);
+    const latest = await getLatestRankCheck(kw.id);
     const sorted = [...history].sort((a, b) => a.date.localeCompare(b.date));
     const previous = sorted.length >= 2 ? sorted[sorted.length - 2] : null;
     return { kw, history, latest, previous };
-  });
+  }));
 
   return (
     <div className="space-y-6 pb-12">
@@ -105,7 +106,7 @@ export default async function RankTrackerPage({ searchParams }: { searchParams: 
           const kwCount = allKeywords.filter((k) => k.domain === domain).length;
           return (
             <div key={domain} className="flex items-center gap-0.5">
-              <a
+              <Link
                 href={`/dashboard/rank-tracker?domain=${encodeURIComponent(domain)}`}
                 className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
                   isActive
@@ -117,7 +118,7 @@ export default async function RankTrackerPage({ searchParams }: { searchParams: 
                 <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-400'}`}>
                   {kwCount}
                 </span>
-              </a>
+              </Link>
               <form action={removeDomainAction}>
                 <input type="hidden" name="domain" value={domain} />
                 <button

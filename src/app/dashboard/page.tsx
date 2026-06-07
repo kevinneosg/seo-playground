@@ -115,7 +115,7 @@ const colorMap: Record<string, { badge: string; icon: string; hover: string }> =
 };
 
 export default async function DashboardPage() {
-  const creds = getCredentials();
+  const creds = await getCredentials();
 
   if (!creds) {
     return (

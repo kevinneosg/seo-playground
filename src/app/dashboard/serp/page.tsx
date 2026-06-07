@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic';
+
+import Link from 'next/link';
 import { getCredentials, getTargetDomains, getSerpHistory, saveSerpSearch, getSerpResults, type SerpHistoryEntry, type TargetHit } from '@/lib/db';
 import { LOCATIONS, LANGUAGES } from '@/lib/geo-options';
 import { addDomainAction, removeDomainAction } from './actions';
@@ -51,9 +54,9 @@ function formatDate(ts: number) {
 }
 
 export default async function SerpPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const creds = getCredentials();
-  const targetDomains = getTargetDomains();
-  const history = getSerpHistory();
+  const creds = await getCredentials();
+  const targetDomains = await getTargetDomains();
+  const history = await getSerpHistory();
 
   const params = await searchParams;
   const historyId = params.history_id;
@@ -70,7 +73,7 @@ export default async function SerpPage({ searchParams }: { searchParams: Promise
 
   // Load from history
   if (historyId) {
-    const saved = getSerpResults<SerpItem>(historyId);
+    const saved = await getSerpResults<SerpItem>(historyId);
     if (saved) {
       results = saved;
       isFromHistory = true;
@@ -109,7 +112,7 @@ export default async function SerpPage({ searchParams }: { searchParams: Promise
             count: results.length,
             targetHits: hits.length > 0 ? hits : undefined,
           };
-          saveSerpSearch(entry, results);
+          await saveSerpSearch(entry, results);
         }
       } catch {
         error = 'Error lors de la requête DataForSEO.';
@@ -300,7 +303,7 @@ export default async function SerpPage({ searchParams }: { searchParams: Promise
                 {history.map((entry) => {
                   const isActive = entry.id === historyId;
                   return (
-                    <a key={entry.id} href={`/dashboard/serp?history_id=${entry.id}#results`}
+                    <Link key={entry.id} href={`/dashboard/serp?history_id=${entry.id}#results`}
                       className={`block px-4 py-3 hover:bg-slate-50 transition-colors ${isActive ? 'bg-blue-50' : ''}`}>
                       <div className="flex items-center justify-between gap-2">
                         <p className={`text-xs font-medium truncate ${isActive ? 'text-blue-700' : 'text-slate-800'}`}>{entry.keyword}</p>
@@ -317,7 +320,7 @@ export default async function SerpPage({ searchParams }: { searchParams: Promise
                           ))}
                         </div>
                       )}
-                    </a>
+                    </Link>
                   );
                 })}
               </div>

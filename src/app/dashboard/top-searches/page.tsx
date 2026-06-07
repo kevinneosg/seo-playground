@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic';
+
+import Link from 'next/link';
 import {
   getCredentials, getSetting,
   getTopSearchesHistory, saveTopSearches, getTopSearchesResults,
@@ -134,12 +137,12 @@ function formatDate(ts: number) {
 const COST_PER_1000 = 0.05;
 
 export default async function TopSearchesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const creds = getCredentials();
+  const creds = await getCredentials();
   const params = await searchParams;
   const historyId = params.history_id;
 
-  const defaultLocation = getSetting('default_location') ?? 'France';
-  const defaultLanguage = getSetting('default_language') ?? 'French';
+  const defaultLocation = await getSetting('default_location') ?? 'France';
+  const defaultLanguage = await getSetting('default_language') ?? 'French';
 
   const location = params.location ?? defaultLocation;
   const language = params.language ?? defaultLanguage;
@@ -154,11 +157,11 @@ export default async function TopSearchesPage({ searchParams }: { searchParams: 
   let activeEntry: TopSearchesEntry | null = null;
 
   if (historyId) {
-    const saved = getTopSearchesResults<TopSearchItem>(historyId);
+    const saved = await getTopSearchesResults<TopSearchItem>(historyId);
     if (saved) {
       items = saved;
       isFromHistory = true;
-      const history = getTopSearchesHistory();
+      const history = await getTopSearchesHistory();
       activeEntry = history.find((e) => e.id === historyId) ?? null;
       totalCount = activeEntry?.totalCount;
       cost = activeEntry?.cost;
@@ -190,12 +193,12 @@ export default async function TopSearchesPage({ searchParams }: { searchParams: 
           totalCount,
           cost,
         };
-        saveTopSearches(entry, items);
+        await saveTopSearches(entry, items);
       }
     }
   }
 
-  const history = getTopSearchesHistory();
+  const history = await getTopSearchesHistory();
   const displayLocation = activeEntry?.location ?? location;
   const displayLanguage = activeEntry?.language ?? language;
   const displayLimit = activeEntry?.limitCount ?? limit;
@@ -376,7 +379,7 @@ export default async function TopSearchesPage({ searchParams }: { searchParams: 
             {history.map((entry) => {
               const isActive = entry.id === historyId;
               return (
-                <a key={entry.id} href={`/dashboard/top-searches?history_id=${entry.id}#results`}
+                <Link key={entry.id} href={`/dashboard/top-searches?history_id=${entry.id}#results`}
                   className={`flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${isActive ? 'bg-blue-50 dark:bg-blue-950' : ''}`}>
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm font-medium truncate ${isActive ? 'text-blue-700 dark:text-blue-400' : 'text-slate-800 dark:text-slate-200'}`}>
@@ -389,7 +392,7 @@ export default async function TopSearchesPage({ searchParams }: { searchParams: 
                     </p>
                   </div>
                   <span className="shrink-0 text-[11px] text-slate-400">{formatDate(entry.ts)}</span>
-                </a>
+                </Link>
               );
             })}
           </div>

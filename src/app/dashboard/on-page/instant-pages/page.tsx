@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic';
+
+import Link from 'next/link';
 import { getCredentials, getInstantPageHistory, saveInstantPageResult, getInstantPageResult, type InstantPageEntry } from '@/lib/db';
 import { redirect } from 'next/navigation';
 import SearchForm from '@/components/SearchForm';
@@ -250,7 +253,7 @@ function CheckBadge({ severity, label }: { severity: CheckSeverity; label: strin
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function InstantPagesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const creds = getCredentials();
+  const creds = await getCredentials();
   const params = await searchParams;
 
   let createError: string | null = null;
@@ -272,7 +275,7 @@ export default async function InstantPagesPage({ searchParams }: { searchParams:
         createError = error ?? 'API call failed.';
       } else {
         const id = randomUUID();
-        saveInstantPageResult<ApiResult>({ id, ts: Date.now(), url: rawUrl, cost }, result);
+        await saveInstantPageResult<ApiResult>({ id, ts: Date.now(), url: rawUrl, cost }, result);
         redirect(`/dashboard/on-page/instant-pages?id=${id}`);
       }
     }
@@ -283,12 +286,12 @@ export default async function InstantPagesPage({ searchParams }: { searchParams:
   let pageResult: ApiResult | null = null;
 
   if (params.id) {
-    const history = getInstantPageHistory();
+    const history = await getInstantPageHistory();
     activeEntry = history.find((e) => e.id === params.id) ?? null;
-    pageResult = getInstantPageResult<ApiResult>(params.id);
+    pageResult = await getInstantPageResult<ApiResult>(params.id);
   }
 
-  const history = getInstantPageHistory();
+  const history = await getInstantPageHistory();
   const page = pageResult?.items?.[0];
 
   const flaggedChecks = page?.checks
@@ -550,7 +553,7 @@ export default async function InstantPagesPage({ searchParams }: { searchParams:
             {history.map((entry) => {
               const isActive = entry.id === params.id;
               return (
-                <a
+                <Link
                   key={entry.id}
                   href={`/dashboard/on-page/instant-pages?id=${entry.id}`}
                   className={`flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 transition-colors ${isActive ? 'bg-blue-50' : ''}`}
@@ -562,7 +565,7 @@ export default async function InstantPagesPage({ searchParams }: { searchParams:
                     <p className="text-[11px] text-slate-400 mt-0.5 truncate font-mono">{entry.url}</p>
                   </div>
                   <span className="shrink-0 text-[11px] text-slate-400">{formatDate(entry.ts)}</span>
-                </a>
+                </Link>
               );
             })}
           </div>

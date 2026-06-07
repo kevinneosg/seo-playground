@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getCredentials, getGridEntry, completeGridSearch } from '@/lib/db';
 import type { GridPoint, GridLocalItem, GridTaskPoint } from '@/lib/db';
@@ -28,7 +30,7 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  const entry = getGridEntry(id);
+  const entry = await getGridEntry(id);
   if (!entry) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
@@ -39,7 +41,7 @@ export async function GET(
     return NextResponse.json({ status: 'error', error: 'No task IDs stored' }, { status: 400 });
   }
 
-  const creds = getCredentials();
+  const creds = await getCredentials();
   if (!creds) {
     return NextResponse.json({ error: 'No credentials' }, { status: 401 });
   }
@@ -110,7 +112,7 @@ export async function GET(
     return { row: tp.row, col: tp.col, lat: tp.lat, lng: tp.lng, rank: match ? match.rank_group : null, items: gridItems };
   });
 
-  completeGridSearch(id, results, totalCost);
+  await completeGridSearch(id, results, totalCost);
 
   return NextResponse.json({ status: 'done', ready: total, total, cost: totalCost });
 }

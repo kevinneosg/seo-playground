@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic';
+
+import Link from 'next/link';
 import { getCredentials, getSetting, getKeywordIdeasHistory, saveKeywordIdeasSearch, getKeywordIdeasResults, type KeywordIdeasEntry } from '@/lib/db';
 import { LOCATIONS, LANGUAGES } from '@/lib/geo-options';
 import SearchForm from '@/components/SearchForm';
@@ -43,10 +46,10 @@ function fmt(n?: number) { return n != null ? n.toLocaleString('en-GB') : '—';
 function formatDate(ts: number) { return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); }
 
 export default async function KeywordIdeasPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const creds = getCredentials();
+  const creds = await getCredentials();
   const params = await searchParams;
-  const defaultLocation = getSetting('default_location') ?? 'France';
-  const defaultLanguage = getSetting('default_language') ?? 'French';
+  const defaultLocation = await getSetting('default_location') ?? 'France';
+  const defaultLanguage = await getSetting('default_language') ?? 'French';
 
   const keyword = params.keyword?.trim() ?? '';
   const location = params.location ?? defaultLocation;
@@ -60,8 +63,8 @@ export default async function KeywordIdeasPage({ searchParams }: { searchParams:
   let activeEntry: KeywordIdeasEntry | null = null;
 
   if (historyId) {
-    const saved = getKeywordIdeasResults<IdeaItem>(historyId);
-    if (saved) { items = saved; activeEntry = getKeywordIdeasHistory().find((e) => e.id === historyId) ?? null; }
+    const saved = await getKeywordIdeasResults<IdeaItem>(historyId);
+    if (saved) { items = saved; activeEntry = (await getKeywordIdeasHistory()).find((e) => e.id === historyId) ?? null; }
     else error = 'Search no longer available.';
   } else if (keyword) {
     if (!creds) { error = 'DataForSEO credentials missing. Configure them in Settings.'; }
@@ -70,12 +73,12 @@ export default async function KeywordIdeasPage({ searchParams }: { searchParams:
       items = result.items; cost = result.cost; error = result.error ?? null;
       if (!error && items.length > 0) {
         const entry: KeywordIdeasEntry = { id: crypto.randomUUID().slice(0, 8), ts: Date.now(), keyword, location, language, count: items.length, cost };
-        saveKeywordIdeasSearch(entry, items);
+        await saveKeywordIdeasSearch(entry, items);
       }
     }
   }
 
-  const history = getKeywordIdeasHistory();
+  const history = await getKeywordIdeasHistory();
   const displayKeyword = activeEntry?.keyword ?? keyword;
   const displayLocation = activeEntry?.location ?? location;
   const displayLanguage = activeEntry?.language ?? language;
@@ -183,14 +186,14 @@ export default async function KeywordIdeasPage({ searchParams }: { searchParams:
             {history.map((entry) => {
               const isActive = entry.id === historyId;
               return (
-                <a key={entry.id} href={`/dashboard/keyword-ideas?history_id=${entry.id}#results`}
+                <Link key={entry.id} href={`/dashboard/keyword-ideas?history_id=${entry.id}#results`}
                   className={`flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${isActive ? 'bg-blue-50 dark:bg-blue-950' : ''}`}>
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm font-medium truncate ${isActive ? 'text-blue-700 dark:text-blue-400' : 'text-slate-800 dark:text-slate-200'}`}>{entry.keyword}</p>
                     <p className="text-[11px] text-slate-400 mt-0.5">{entry.count} ideas · {entry.location}{entry.cost !== undefined ? ` · $${entry.cost.toFixed(4)}` : ''}</p>
                   </div>
                   <span className="shrink-0 text-[11px] text-slate-400">{formatDate(entry.ts)}</span>
-                </a>
+                </Link>
               );
             })}
           </div>

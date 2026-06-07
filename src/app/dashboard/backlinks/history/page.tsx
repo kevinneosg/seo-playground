@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic';
+
+import Link from 'next/link';
 import { getCredentials, getSetting, getBlHistHistory, saveBlHist, getBlHistResults, type BlHistEntry } from '@/lib/db';
 import SearchForm from '@/components/SearchForm';
 import ExportCSVButton from '@/components/ExportCSVButton';
@@ -66,9 +69,9 @@ function SparkChart({ points, key1, key2, color1, color2 }: {
 }
 
 export default async function BacklinksHistoryPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const creds = getCredentials();
+  const creds = await getCredentials();
   const params = await searchParams;
-  const defaultDomain = getSetting('default_domain') ?? '';
+  const defaultDomain = await getSetting('default_domain') ?? '';
   const rawTarget = params.target?.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '') ?? '';
   const historyId = params.history_id;
 
@@ -78,8 +81,8 @@ export default async function BacklinksHistoryPage({ searchParams }: { searchPar
   let activeEntry: BlHistEntry | null = null;
 
   if (historyId) {
-    const saved = getBlHistResults<HistoryPoint>(historyId);
-    if (saved) { items = saved; activeEntry = getBlHistHistory().find((e) => e.id === historyId) ?? null; }
+    const saved = await getBlHistResults<HistoryPoint>(historyId);
+    if (saved) { items = saved; activeEntry = (await getBlHistHistory()).find((e) => e.id === historyId) ?? null; }
     else error = 'Search no longer available.';
   } else if (rawTarget) {
     if (!creds) { error = 'DataForSEO credentials missing. Configure them in Settings.'; }
@@ -88,12 +91,12 @@ export default async function BacklinksHistoryPage({ searchParams }: { searchPar
       items = result.items; cost = result.cost; error = result.error ?? null;
       if (!error && items.length > 0) {
         const entry: BlHistEntry = { id: crypto.randomUUID().slice(0, 8), ts: Date.now(), target: rawTarget, count: items.length, cost };
-        saveBlHist(entry, items);
+        await saveBlHist(entry, items);
       }
     }
   }
 
-  const searchHistory = getBlHistHistory();
+  const searchHistory = await getBlHistHistory();
   const displayTarget = activeEntry?.target ?? rawTarget;
   const sorted = [...items].sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''));
   const latest = sorted[sorted.length - 1];
@@ -112,7 +115,7 @@ export default async function BacklinksHistoryPage({ searchParams }: { searchPar
     <div className="space-y-6">
       <div>
         <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-400 mb-1">
-          <a href="/dashboard/backlinks" className="hover:text-slate-600 transition-colors">Backlinks</a>
+          <Link href="/dashboard/backlinks" className="hover:text-slate-600 transition-colors">Backlinks</Link>
           <span className="text-slate-200">/</span>
           <span className="text-slate-600">History</span>
         </div>
@@ -226,14 +229,14 @@ export default async function BacklinksHistoryPage({ searchParams }: { searchPar
             {searchHistory.map((entry) => {
               const isActive = entry.id === historyId;
               return (
-                <a key={entry.id} href={`/dashboard/backlinks/history?history_id=${entry.id}#results`}
+                <Link key={entry.id} href={`/dashboard/backlinks/history?history_id=${entry.id}#results`}
                   className={`flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${isActive ? 'bg-blue-50 dark:bg-blue-950' : ''}`}>
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm font-medium font-mono truncate ${isActive ? 'text-blue-700 dark:text-blue-400' : 'text-slate-800 dark:text-slate-200'}`}>{entry.target}</p>
                     <p className="text-[11px] text-slate-400 mt-0.5">{entry.count} data points{entry.cost !== undefined ? ` · $${entry.cost.toFixed(4)}` : ''}</p>
                   </div>
                   <span className="shrink-0 text-[11px] text-slate-400">{formatDate(entry.ts)}</span>
-                </a>
+                </Link>
               );
             })}
           </div>

@@ -12,7 +12,7 @@ export async function submitReviewsTaskAction(formData: FormData) {
 
   if (!keyword) return;
 
-  const creds = getCredentials();
+  const creds = await getCredentials();
   if (!creds) return;
 
   const auth = btoa(`${creds.login}:${creds.pass}`);
@@ -41,6 +41,6 @@ export async function submitReviewsTaskAction(formData: FormData) {
   if (!task?.id || task.status_code !== 20100) return;
 
   // data.cost is the top-level cost from the task_post response
-  saveReviewsTask(task.id, keyword, location, language, depth, sortBy, data.cost);
+  await saveReviewsTask(task.id, keyword, location, language, depth, sortBy, data.cost);
   revalidatePath('/dashboard/google-reviews');
 }

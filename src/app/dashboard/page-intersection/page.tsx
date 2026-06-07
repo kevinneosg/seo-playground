@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic';
+
+import Link from 'next/link';
 import { getCredentials, getSetting, getPageIntersectionHistory, savePageIntersectionSearch, getPageIntersectionResults, type PageIntersectionEntry } from '@/lib/db';
 import { LOCATIONS, LANGUAGES } from '@/lib/geo-options';
 import SearchForm from '@/components/SearchForm';
@@ -42,10 +45,10 @@ function RankBadge({ rank }: { rank?: number }) {
 }
 
 export default async function PageIntersectionPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const creds = getCredentials();
+  const creds = await getCredentials();
   const params = await searchParams;
-  const defaultLocation = getSetting('default_location') ?? 'France';
-  const defaultLanguage = getSetting('default_language') ?? 'French';
+  const defaultLocation = await getSetting('default_location') ?? 'France';
+  const defaultLanguage = await getSetting('default_language') ?? 'French';
 
   const rawPages = params.pages?.trim() ?? '';
   const location = params.location ?? defaultLocation;
@@ -60,10 +63,10 @@ export default async function PageIntersectionPage({ searchParams }: { searchPar
   let activeEntry: PageIntersectionEntry | null = null;
 
   if (historyId) {
-    const saved = getPageIntersectionResults<IntersectionItem>(historyId);
+    const saved = await getPageIntersectionResults<IntersectionItem>(historyId);
     if (saved) {
       items = saved;
-      activeEntry = getPageIntersectionHistory().find((e) => e.id === historyId) ?? null;
+      activeEntry = (await getPageIntersectionHistory()).find((e) => e.id === historyId) ?? null;
       pageList = JSON.parse(activeEntry?.pages ?? '[]') as string[];
     } else error = 'Search no longer available.';
   } else if (rawPages) {
@@ -75,12 +78,12 @@ export default async function PageIntersectionPage({ searchParams }: { searchPar
       items = result.items; cost = result.cost; error = result.error ?? null;
       if (!error && items.length > 0) {
         const entry: PageIntersectionEntry = { id: crypto.randomUUID().slice(0, 8), ts: Date.now(), pages: JSON.stringify(pageList), location, language, count: items.length, cost };
-        savePageIntersectionSearch(entry, items);
+        await savePageIntersectionSearch(entry, items);
       }
     }
   }
 
-  const history = getPageIntersectionHistory();
+  const history = await getPageIntersectionHistory();
   const displayLocation = activeEntry?.location ?? location;
   const displayLanguage = activeEntry?.language ?? language;
 
@@ -188,14 +191,14 @@ export default async function PageIntersectionPage({ searchParams }: { searchPar
               const isActive = entry.id === historyId;
               const urls = JSON.parse(entry.pages) as string[];
               return (
-                <a key={entry.id} href={`/dashboard/page-intersection?history_id=${entry.id}#results`}
+                <Link key={entry.id} href={`/dashboard/page-intersection?history_id=${entry.id}#results`}
                   className={`flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${isActive ? 'bg-blue-50 dark:bg-blue-950' : ''}`}>
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm font-medium truncate ${isActive ? 'text-blue-700 dark:text-blue-400' : 'text-slate-800 dark:text-slate-200'}`}>{urls[0]}</p>
                     <p className="text-[11px] text-slate-400 mt-0.5">{urls.length} pages · {entry.count} keywords{entry.cost !== undefined ? ` · $${entry.cost.toFixed(4)}` : ''}</p>
                   </div>
                   <span className="shrink-0 text-[11px] text-slate-400">{formatDate(entry.ts)}</span>
-                </a>
+                </Link>
               );
             })}
           </div>
