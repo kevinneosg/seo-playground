@@ -977,6 +977,15 @@ export async function countPendingRankCheckTasks(domain?: string): Promise<numbe
   return Number(row?.n ?? 0);
 }
 
+// Safety net: drop tasks that never surfaced in tasks_ready (e.g. swallowed by the
+// queue) so the poller can't spin forever. Standard queue resolves in minutes, so
+// anything older than the cutoff is abandoned.
+export async function deleteStaleRankCheckTasks(maxAgeMs: number): Promise<number> {
+  const cutoff = Date.now() - maxAgeMs;
+  const res = await query('DELETE FROM rank_check_tasks WHERE posted_at < $1', [cutoff]);
+  return res.rowCount ?? 0;
+}
+
 // --- Referring Domains ---
 
 export interface RefDomainsSearchEntry {

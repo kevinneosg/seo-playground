@@ -42,8 +42,9 @@ export default async function RankTrackerPage({ searchParams }: { searchParams: 
   // Keywords for the active domain
   const keywords = activeDomain ? allKeywords.filter((k) => k.domain === activeDomain) : [];
 
-  // Pending async rank-check tasks (scoped to the active domain, or global if none).
-  const pendingCount = await countPendingRankCheckTasks(activeDomain ?? undefined);
+  // Pending async rank-check tasks — global (domain-agnostic) so a "Check All"
+  // spanning multiple domains stays visible even while viewing one domain's tab.
+  const pendingCount = await countPendingRankCheckTasks();
 
   const ROW_FETCH_CONCURRENCY = 20;
   const rows: Array<{
@@ -118,7 +119,7 @@ export default async function RankTrackerPage({ searchParams }: { searchParams: 
 
       {/* ── Async check progress ───────────────────────────────────────────── */}
       {pendingCount > 0 && (
-        <RankCheckPending domain={activeDomain ?? undefined} total={pendingCount} />
+        <RankCheckPending total={pendingCount} />
       )}
 
       {/* ── Domain tabs ────────────────────────────────────────────────────── */}

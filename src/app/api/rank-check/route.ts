@@ -3,8 +3,11 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import {
   getCredentials, getPendingRankCheckTasks, deleteRankCheckTask,
-  countPendingRankCheckTasks, saveRankCheck,
+  countPendingRankCheckTasks, saveRankCheck, deleteStaleRankCheckTasks,
 } from '@/lib/db';
+
+// Abandon tasks that never appear in tasks_ready so the poller can't wedge.
+const STALE_TASK_MS = 60 * 60 * 1000; // 60 min (Standard queue resolves in minutes)
 import { matchOrganicRank, type SerpItem } from '@/app/dashboard/rank-tracker/rank-match';
 
 interface TaskGetResponse {
@@ -73,6 +76,8 @@ export async function GET(req: NextRequest) {
       // Network/timeout → leave pending, retry next poll.
     }
   }
+
+  await deleteStaleRankCheckTasks(STALE_TASK_MS);
 
   const remaining = await countPendingRankCheckTasks(domain);
   return NextResponse.json({ pending: remaining, done, total });
