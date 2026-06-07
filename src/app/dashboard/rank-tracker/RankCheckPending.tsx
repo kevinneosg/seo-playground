@@ -15,12 +15,16 @@ export default function RankCheckPending({ domain, total }: Props) {
   const router = useRouter();
   const [pending, setPending] = useState(total);
   const [checking, setChecking] = useState(false);
+  const checkingRef = useRef(false);
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
   const doneRef = useRef(false);
 
   const checkStatus = useCallback(async () => {
-    if (checking || doneRef.current) return;
+    // Guard via ref, not state: the interval captures the initial closure, so a
+    // stale `checking` value would let polls run concurrently.
+    if (checkingRef.current || doneRef.current) return;
+    checkingRef.current = true;
     setChecking(true);
     setError(null);
     try {
@@ -40,9 +44,10 @@ export default function RankCheckPending({ domain, total }: Props) {
     } catch {
       setError('Network error — will retry.');
     } finally {
+      checkingRef.current = false;
       setChecking(false);
     }
-  }, [domain, checking, router]);
+  }, [domain, router]);
 
   useEffect(() => {
     checkStatus();
