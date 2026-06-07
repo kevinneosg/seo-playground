@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic';
+
+import Link from 'next/link';
 import { getCredentials, getKdHistory, saveKdSearch, getKdResults, type KdHistoryEntry } from '@/lib/db';
 import KeywordDataForm from './KeywordDataForm';
 
@@ -89,7 +92,7 @@ function formatDate(ts: number) {
 }
 
 export default async function KeywordDataPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const creds = getCredentials();
+  const creds = await getCredentials();
   const params = await searchParams;
   const historyId = params.history_id;
 
@@ -100,11 +103,11 @@ export default async function KeywordDataPage({ searchParams }: { searchParams: 
   let activeEntry: KdHistoryEntry | null = null;
 
   if (historyId) {
-    const saved = getKdResults<KeywordItem>(historyId);
+    const saved = await getKdResults<KeywordItem>(historyId);
     if (saved) {
       items = saved;
       isFromHistory = true;
-      const index = getKdHistory();
+      const index = await getKdHistory();
       activeEntry = index.find((e) => e.id === historyId) ?? null;
     } else {
       error = 'Cette recherche n\'est plus disponible.';
@@ -138,12 +141,12 @@ export default async function KeywordDataPage({ searchParams }: { searchParams: 
             Object.entries(params).filter(([k, v]) => k !== 'history_id' && v !== undefined)
           ) as Record<string, string>,
         };
-        saveKdSearch(entry, items);
+        await saveKdSearch(entry, items);
       }
     }
   }
 
-  const historyIndex = getKdHistory();
+  const historyIndex = await getKdHistory();
   const sourceParams = activeEntry?.params ?? (params as Record<string, string | undefined>);
   const formDefaults = {
     se: sourceParams.se ?? 'google_ads', seType: sourceParams.se_type ?? 'search_volume',
@@ -238,7 +241,7 @@ export default async function KeywordDataPage({ searchParams }: { searchParams: 
             {historyIndex.map((entry) => {
               const isActive = entry.id === historyId;
               return (
-                <a key={entry.id} href={`/dashboard/keyword-data?history_id=${entry.id}#results`}
+                <Link key={entry.id} href={`/dashboard/keyword-data?history_id=${entry.id}#results`}
                   className={`flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 transition-colors ${isActive ? 'bg-blue-50' : ''}`}>
                   <div className="shrink-0 flex flex-col items-center gap-1">
                     <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{SE_LABELS[entry.se] ?? entry.se}</span>
@@ -251,7 +254,7 @@ export default async function KeywordDataPage({ searchParams }: { searchParams: 
                     </p>
                   </div>
                   <span className="shrink-0 text-[11px] text-slate-400">{formatDate(entry.ts)}</span>
-                </a>
+                </Link>
               );
             })}
           </div>

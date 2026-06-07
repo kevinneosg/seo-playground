@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic';
+
+import Link from 'next/link';
 import {
   getCredentials, getSiteAuditHistory, getSiteAuditTask, upsertSiteAuditTask,
   saveSiteAuditResult, getSiteAuditSummary, getSiteAuditPages,
@@ -355,7 +358,7 @@ function IssueRow({ label, count, sev }: { label: string; count: number; sev: Se
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function SiteAuditPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const creds = getCredentials();
+  const creds = await getCredentials();
   const params = await searchParams;
   const view = params.view ?? 'overview';
   const kwLen = parseInt(params.kw_len ?? '1', 10) || 1;
@@ -375,7 +378,7 @@ export default async function SiteAuditPage({ searchParams }: { searchParams: Pr
       if (error || !taskId) {
         createError = error ?? 'Failed to create task.';
       } else {
-        upsertSiteAuditTask({ id: taskId, ts: Date.now(), target, maxCrawlPages: maxPages, status: 'pending', cost });
+        await upsertSiteAuditTask({ id: taskId, ts: Date.now(), target, maxCrawlPages: maxPages, status: 'pending', cost });
         redirect(`/dashboard/on-page/site-audit?task_id=${taskId}`);
       }
     }
@@ -388,17 +391,17 @@ export default async function SiteAuditPage({ searchParams }: { searchParams: Pr
   const taskError: string | null = null;
 
   if (params.task_id) {
-    activeTask = getSiteAuditTask(params.task_id);
+    activeTask = await getSiteAuditTask(params.task_id);
 
     if (activeTask?.status === 'finished') {
-      summary = getSiteAuditSummary<SummaryResult>(params.task_id);
-      auditPages = getSiteAuditPages<AuditPage>(params.task_id);
+      summary = await getSiteAuditSummary<SummaryResult>(params.task_id);
+      auditPages = await getSiteAuditPages<AuditPage>(params.task_id);
     } else if (creds && activeTask && activeTask.status !== 'error') {
       const { summary: fetchedSummary, error: sumErr } = await fetchSummary(params.task_id, creds.login, creds.pass);
       if (sumErr) {
         // Transient failure — task is likely still queued. Keep as in_progress, don't mark error.
         activeTask = { ...activeTask, status: 'in_progress' };
-        upsertSiteAuditTask(activeTask);
+        await upsertSiteAuditTask(activeTask);
       } else if (fetchedSummary) {
         const pagesCrawled = fetchedSummary.crawl_status.pages_crawled;
         if (fetchedSummary.crawl_progress === 'finished') {
@@ -406,16 +409,16 @@ export default async function SiteAuditPage({ searchParams }: { searchParams: Pr
           if (pagesErr) {
             // Pages not ready yet — keep in_progress, user will retry
             activeTask = { ...activeTask, status: 'in_progress', pagesCrawled };
-            upsertSiteAuditTask(activeTask);
+            await upsertSiteAuditTask(activeTask);
           } else {
             summary = fetchedSummary;
             auditPages = pages ?? [];
-            saveSiteAuditResult(params.task_id, fetchedSummary, auditPages, pagesCrawled);
+            await saveSiteAuditResult(params.task_id, fetchedSummary, auditPages, pagesCrawled);
             activeTask = { ...activeTask, status: 'finished', pagesCrawled };
           }
         } else {
           activeTask = { ...activeTask, status: 'in_progress', pagesCrawled };
-          upsertSiteAuditTask(activeTask);
+          await upsertSiteAuditTask(activeTask);
         }
       }
     }
@@ -462,7 +465,7 @@ export default async function SiteAuditPage({ searchParams }: { searchParams: Pr
     else nonIndexItems = items ?? [];
   }
 
-  const history = getSiteAuditHistory();
+  const history = await getSiteAuditHistory();
   const score = summary?.page_metrics?.onpage_score;
   const isFinished = activeTask?.status === 'finished' && summary;
 
@@ -507,7 +510,7 @@ export default async function SiteAuditPage({ searchParams }: { searchParams: Pr
       {/* Header */}
       <div>
         <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-400 mb-1">
-          <a href="/dashboard/on-page" className="hover:text-slate-600 transition-colors">On Page</a>
+          <Link href="/dashboard/on-page" className="hover:text-slate-600 transition-colors">On Page</Link>
           <span className="text-slate-200">/</span>
           <span className="text-slate-600">Site Audit</span>
         </div>
@@ -566,10 +569,10 @@ export default async function SiteAuditPage({ searchParams }: { searchParams: Pr
               </p>
             </div>
             {activeTask.status !== 'finished' && (
-              <a href={`/dashboard/on-page/site-audit?task_id=${activeTask.id}`}
+              <Link href={`/dashboard/on-page/site-audit?task_id=${activeTask.id}`}
                 className="shrink-0 text-[11px] font-black uppercase tracking-widest text-blue-500 hover:text-blue-700 border border-blue-100 hover:border-blue-300 px-3 py-1.5 rounded-lg transition-all bg-blue-50 dark:bg-blue-950">
                 Refresh ↺
-              </a>
+              </Link>
             )}
           </div>
 
@@ -601,14 +604,14 @@ export default async function SiteAuditPage({ searchParams }: { searchParams: Pr
                   ['non_indexable',  'Non-indexable'],
                   ['keyword_density','Keyword Density'],
                 ] as const).map(([t, label]) => (
-                  <a key={t} href={`/dashboard/on-page/site-audit?task_id=${activeTask!.id}&view=${t}`}
+                  <Link key={t} href={`/dashboard/on-page/site-audit?task_id=${activeTask!.id}&view=${t}`}
                     className={`px-3 py-2 text-[11px] font-black uppercase tracking-widest rounded-t-lg transition-colors whitespace-nowrap ${
                       view === t
                         ? 'bg-slate-900 dark:bg-slate-700 text-white'
                         : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
                     }`}>
                     {label}
-                  </a>
+                  </Link>
                 ))}
               </div>
 
@@ -724,7 +727,7 @@ export default async function SiteAuditPage({ searchParams }: { searchParams: Pr
                   <div className="px-6 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2">
                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mr-2">N-gram</span>
                     {[1, 2, 3].map((n) => (
-                      <a key={n}
+                      <Link key={n}
                         href={`/dashboard/on-page/site-audit?task_id=${activeTask!.id}&view=keyword_density&kw_len=${n}`}
                         className={`px-3 py-1 text-[11px] font-black uppercase tracking-widest rounded-lg border transition-colors ${
                           kwLen === n
@@ -732,7 +735,7 @@ export default async function SiteAuditPage({ searchParams }: { searchParams: Pr
                             : 'text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-400'
                         }`}>
                         {n === 1 ? 'Unigram' : n === 2 ? 'Bigram' : 'Trigram'}
-                      </a>
+                      </Link>
                     ))}
                     {kwDensityItems && (
                       <span className="ml-auto text-[11px] text-slate-400">{kwDensityItems.length} keywords</span>
@@ -1122,7 +1125,7 @@ export default async function SiteAuditPage({ searchParams }: { searchParams: Pr
             {history.map((entry) => {
               const isActive = entry.id === params.task_id;
               return (
-                <a key={entry.id} href={`/dashboard/on-page/site-audit?task_id=${entry.id}`}
+                <Link key={entry.id} href={`/dashboard/on-page/site-audit?task_id=${entry.id}`}
                   className={`flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${isActive ? 'bg-blue-50 dark:bg-blue-950' : ''}`}>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -1137,7 +1140,7 @@ export default async function SiteAuditPage({ searchParams }: { searchParams: Pr
                     </p>
                   </div>
                   <span className="shrink-0 text-[11px] text-slate-400">{formatDate(entry.ts)}</span>
-                </a>
+                </Link>
               );
             })}
           </div>

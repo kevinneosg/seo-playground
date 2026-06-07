@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic';
+
+import Link from 'next/link';
 import { getCredentials, getSetting, getTrafficEstimationHistory, saveTrafficEstimationSearch, getTrafficEstimationResults, type TrafficEstimationEntry } from '@/lib/db';
 import { LOCATIONS, LANGUAGES } from '@/lib/geo-options';
 import SearchForm from '@/components/SearchForm';
@@ -39,10 +42,10 @@ function TrafficBar({ value, max }: { value?: number; max: number }) {
 }
 
 export default async function TrafficEstimationPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const creds = getCredentials();
+  const creds = await getCredentials();
   const params = await searchParams;
-  const defaultLocation = getSetting('default_location') ?? 'France';
-  const defaultLanguage = getSetting('default_language') ?? 'French';
+  const defaultLocation = await getSetting('default_location') ?? 'France';
+  const defaultLanguage = await getSetting('default_language') ?? 'French';
 
   const rawTargets = params.targets?.trim() ?? '';
   const location = params.location ?? defaultLocation;
@@ -55,8 +58,8 @@ export default async function TrafficEstimationPage({ searchParams }: { searchPa
   let activeEntry: TrafficEstimationEntry | null = null;
 
   if (historyId) {
-    const saved = getTrafficEstimationResults<TrafficItem>(historyId);
-    if (saved) { items = saved; activeEntry = getTrafficEstimationHistory().find((e) => e.id === historyId) ?? null; }
+    const saved = await getTrafficEstimationResults<TrafficItem>(historyId);
+    if (saved) { items = saved; activeEntry = (await getTrafficEstimationHistory()).find((e) => e.id === historyId) ?? null; }
     else error = 'Search no longer available.';
   } else if (rawTargets) {
     const targetList = rawTargets.split('\n').map((t) => t.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '')).filter(Boolean).slice(0, 1000);
@@ -66,12 +69,12 @@ export default async function TrafficEstimationPage({ searchParams }: { searchPa
       items = result.items; cost = result.cost; error = result.error ?? null;
       if (!error && items.length > 0) {
         const entry: TrafficEstimationEntry = { id: crypto.randomUUID().slice(0, 8), ts: Date.now(), targets: targetList.join(', '), location, language, count: items.length, cost };
-        saveTrafficEstimationSearch(entry, items);
+        await saveTrafficEstimationSearch(entry, items);
       }
     }
   }
 
-  const history = getTrafficEstimationHistory();
+  const history = await getTrafficEstimationHistory();
   const displayLocation = activeEntry?.location ?? location;
   const displayLanguage = activeEntry?.language ?? language;
 
@@ -120,7 +123,7 @@ export default async function TrafficEstimationPage({ searchParams }: { searchPa
       {error && <div className="bg-red-50 dark:bg-red-950 border border-red-100 text-red-600 dark:text-red-400 text-sm rounded-xl px-4 py-3">{error}</div>}
 
       {(historyId || rawTargets) && !error && (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+        <div id="results" className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
             <span className="text-xs font-black uppercase tracking-widest text-slate-400">{items.length} domains</span>
             <div className="flex items-center gap-3">
@@ -169,14 +172,14 @@ export default async function TrafficEstimationPage({ searchParams }: { searchPa
             {history.map((entry) => {
               const isActive = entry.id === historyId;
               return (
-                <a key={entry.id} href={`/dashboard/traffic-estimation?history_id=${entry.id}#results`}
+                <Link key={entry.id} href={`/dashboard/traffic-estimation?history_id=${entry.id}#results`}
                   className={`flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${isActive ? 'bg-blue-50 dark:bg-blue-950' : ''}`}>
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm font-medium truncate ${isActive ? 'text-blue-700 dark:text-blue-400' : 'text-slate-800 dark:text-slate-200'}`}>{entry.targets}</p>
                     <p className="text-[11px] text-slate-400 mt-0.5">{entry.count} domains · {entry.location}{entry.cost !== undefined ? ` · $${entry.cost.toFixed(4)}` : ''}</p>
                   </div>
                   <span className="shrink-0 text-[11px] text-slate-400">{formatDate(entry.ts)}</span>
-                </a>
+                </Link>
               );
             })}
           </div>

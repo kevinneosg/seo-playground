@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
+import { apiUrl } from '@/lib/api-base';
 
 const DISMISS_KEY = 'update-banner-dismissed';
 

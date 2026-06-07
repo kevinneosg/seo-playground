@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic';
+
+import Link from 'next/link';
 import {
   getCredentials,
   getRankedKwHistory,
@@ -165,7 +168,7 @@ function formatDate(ts: number) {
 // ---- Page ----
 
 export default async function RankedKeywordsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const creds = getCredentials();
+  const creds = await getCredentials();
   const params = await searchParams;
   const historyId = params.history_id;
 
@@ -184,11 +187,11 @@ export default async function RankedKeywordsPage({ searchParams }: { searchParam
   let activeEntry: RankedKwSearchEntry | null = null;
 
   if (historyId) {
-    const saved = getRankedKwResults<RankedKwItem>(historyId);
+    const saved = await getRankedKwResults<RankedKwItem>(historyId);
     if (saved) {
       items = saved;
       isFromHistory = true;
-      const history = getRankedKwHistory();
+      const history = await getRankedKwHistory();
       activeEntry = history.find((e) => e.id === historyId) ?? null;
       totalCount = activeEntry?.totalCount ?? items.length;
     } else {
@@ -217,12 +220,12 @@ export default async function RankedKeywordsPage({ searchParams }: { searchParam
           totalCount,
           cost,
         };
-        saveRankedKwSearch(entry, items);
+        await saveRankedKwSearch(entry, items);
       }
     }
   }
 
-  const history = getRankedKwHistory();
+  const history = await getRankedKwHistory();
   const hasQuery = historyId || target;
 
   // Stats
@@ -444,7 +447,7 @@ export default async function RankedKeywordsPage({ searchParams }: { searchParam
             {history.map((entry) => {
               const isActive = entry.id === historyId;
               return (
-                <a key={entry.id} href={`/dashboard/ranked-keywords?history_id=${entry.id}#results`}
+                <Link key={entry.id} href={`/dashboard/ranked-keywords?history_id=${entry.id}#results`}
                   className={`flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 transition-colors ${isActive ? 'bg-blue-50' : ''}`}>
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm font-bold truncate font-mono ${isActive ? 'text-blue-700' : 'text-slate-800'}`}>{entry.target}</p>
@@ -454,7 +457,7 @@ export default async function RankedKeywordsPage({ searchParams }: { searchParam
                     </p>
                   </div>
                   <span className="shrink-0 text-[11px] text-slate-400">{formatDate(entry.ts)}</span>
-                </a>
+                </Link>
               );
             })}
           </div>

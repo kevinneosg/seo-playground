@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic';
+
+import Link from 'next/link';
 import {
   getCredentials, getSetting, getGridHistory, getGridEntry, saveGridSearch,
   saveGridSearchPending, getGridResults, type GridSearchEntry, type GridPoint, type GridQueueMode,
@@ -37,12 +40,12 @@ function gridRerunUrl(entry: { keyword: string; center: string; grid_size: numbe
 }
 
 export default async function GeoGridPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const creds = getCredentials();
+  const creds = await getCredentials();
   const params = await searchParams;
   const gridHistoryId = params.grid_history_id;
 
-  const defaultLanguage = getSetting('default_language') ?? 'English';
-  const defaultCoordinates = getSetting('default_coordinates') ?? '';
+  const defaultLanguage = await getSetting('default_language') ?? 'English';
+  const defaultCoordinates = await getSetting('default_coordinates') ?? '';
 
   let gridResults: GridPoint[] | null = null;
   let gridEntry: GridSearchEntry | null = null;
@@ -52,14 +55,14 @@ export default async function GeoGridPage({ searchParams }: { searchParams: Prom
 
   // Load from history
   if (gridHistoryId) {
-    const entry = getGridEntry(gridHistoryId);
+    const entry = await getGridEntry(gridHistoryId);
     if (!entry) {
       gridError = 'Search not found.';
     } else if (entry.status === 'pending') {
       gridEntry = entry;
       gridPending = { id: entry.id, totalPoints: entry.grid_size ** 2, queueMode: entry.queue_mode };
     } else {
-      gridResults = getGridResults(gridHistoryId);
+      gridResults = await getGridResults(gridHistoryId);
       gridEntry = entry;
     }
   }
@@ -77,13 +80,13 @@ export default async function GeoGridPage({ searchParams }: { searchParams: Prom
         params.keyword, params.location_coordinate, gridSize, spacingKm, params.grid_target, queueMode,
       );
 
-      const alreadySaved = getGridEntry(id);
+      const alreadySaved = await getGridEntry(id);
       if (alreadySaved) {
         gridEntry = alreadySaved;
         if (alreadySaved.status === 'pending') {
           gridPending = { id, totalPoints: gridSize ** 2, queueMode };
         } else {
-          gridResults = getGridResults(id);
+          gridResults = await getGridResults(id);
           gridCost = alreadySaved.cost;
         }
       } else {
@@ -111,7 +114,7 @@ export default async function GeoGridPage({ searchParams }: { searchParams: Prom
             gridResults = result.results;
             gridCost = result.cost;
             gridEntry = { ...baseEntry, cost: result.cost };
-            saveGridSearch(gridEntry, result.results);
+            await saveGridSearch(gridEntry, result.results);
           }
         } else {
           const result = await postGridTasksQueue(
@@ -123,7 +126,7 @@ export default async function GeoGridPage({ searchParams }: { searchParams: Prom
             gridError = result.error;
           } else {
             gridEntry = { ...baseEntry, status: 'pending', cost: result.cost };
-            saveGridSearchPending(gridEntry, result.taskPoints);
+            await saveGridSearchPending(gridEntry, result.taskPoints);
             gridPending = { id, totalPoints: gridSize ** 2, queueMode };
           }
         }
@@ -131,7 +134,7 @@ export default async function GeoGridPage({ searchParams }: { searchParams: Prom
     }
   }
 
-  const gridHistory = getGridHistory();
+  const gridHistory = await getGridHistory();
 
   const formDefaults = {
     keyword: (params.keyword ?? '').toString(),
@@ -197,7 +200,7 @@ export default async function GeoGridPage({ searchParams }: { searchParams: Prom
               const isPending = entry.status === 'pending';
               return (
                 <div key={entry.id} className={`flex items-center gap-2 px-6 py-3.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${isActive ? 'bg-blue-50 dark:bg-blue-950' : ''}`}>
-                  <a href={`/dashboard/geo-grid?grid_history_id=${entry.id}#results`} className="flex-1 min-w-0">
+                  <Link href={`/dashboard/geo-grid?grid_history_id=${entry.id}#results`} className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className={`text-sm font-medium truncate ${isActive ? 'text-blue-700' : 'text-slate-800 dark:text-slate-200'}`}>
                         {entry.keyword}
@@ -211,16 +214,16 @@ export default async function GeoGridPage({ searchParams }: { searchParams: Prom
                       Target: {entry.target} · {entry.spacing_km} km
                       {entry.cost !== undefined ? ` · $${entry.cost.toFixed(4)}` : ''}
                     </p>
-                  </a>
+                  </Link>
                   <div className="flex items-center gap-3 shrink-0">
                     <span className="text-[11px] text-slate-400">{formatDate(entry.ts)}</span>
-                    <a
+                    <Link
                       href={gridRerunUrl(entry)}
                       className="text-[10px] font-black uppercase tracking-widest text-emerald-600 hover:text-emerald-800 transition-colors"
                       title="Run this search again"
                     >
                       Re-run ↻
-                    </a>
+                    </Link>
                   </div>
                 </div>
               );

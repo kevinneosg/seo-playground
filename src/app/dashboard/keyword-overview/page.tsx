@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 
+import Link from 'next/link';
 import {
   getCredentials,
   getKwOverviewHistory,
@@ -167,13 +168,13 @@ function formatDate(ts: number) {
 // ---- Page ----
 
 export default async function KeywordOverviewPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const creds = getCredentials();
+  const creds = await getCredentials();
   const params = await searchParams;
   const historyId = params.history_id;
 
   const rawKeywords = params.keywords ?? '';
-  const defaultLocation = getSetting('default_location') ?? 'France';
-  const defaultLanguage = getSetting('default_language') ?? 'French';
+  const defaultLocation = await getSetting('default_location') ?? 'France';
+  const defaultLanguage = await getSetting('default_language') ?? 'French';
   const location = params.location ?? defaultLocation;
   const language = params.language ?? defaultLanguage;
 
@@ -184,11 +185,11 @@ export default async function KeywordOverviewPage({ searchParams }: { searchPara
   let activeEntry: KwOverviewSearchEntry | null = null;
 
   if (historyId) {
-    const saved = getKwOverviewResults<KwOverviewItem>(historyId);
+    const saved = await getKwOverviewResults<KwOverviewItem>(historyId);
     if (saved) {
       items = saved;
       isFromHistory = true;
-      const history = getKwOverviewHistory();
+      const history = await getKwOverviewHistory();
       activeEntry = history.find((e) => e.id === historyId) ?? null;
     } else {
       error = 'This search is no longer available.';
@@ -217,12 +218,12 @@ export default async function KeywordOverviewPage({ searchParams }: { searchPara
           count: items.length,
           cost,
         };
-        saveKwOverviewSearch(entry, items);
+        await saveKwOverviewSearch(entry, items);
       }
     }
   }
 
-  const history = getKwOverviewHistory();
+  const history = await getKwOverviewHistory();
   const hasQuery = historyId || keywords.length > 0;
 
   // Aggregate stats
@@ -292,7 +293,7 @@ export default async function KeywordOverviewPage({ searchParams }: { searchPara
 
       {/* Results table */}
       {hasQuery && !error && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div id="results" className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <h2 className="text-xs font-black uppercase tracking-widest text-slate-400">Results</h2>
@@ -361,7 +362,7 @@ export default async function KeywordOverviewPage({ searchParams }: { searchPara
             {history.map((entry) => {
               const isActive = entry.id === historyId;
               return (
-                <a key={entry.id} href={`/dashboard/keyword-overview?history_id=${entry.id}#results`}
+                <Link key={entry.id} href={`/dashboard/keyword-overview?history_id=${entry.id}#results`}
                   className={`flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 transition-colors ${isActive ? 'bg-blue-50' : ''}`}>
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm font-medium truncate ${isActive ? 'text-blue-700' : 'text-slate-800'}`}>{entry.keywords}</p>
@@ -371,7 +372,7 @@ export default async function KeywordOverviewPage({ searchParams }: { searchPara
                     </p>
                   </div>
                   <span className="shrink-0 text-[11px] text-slate-400">{formatDate(entry.ts)}</span>
-                </a>
+                </Link>
               );
             })}
           </div>

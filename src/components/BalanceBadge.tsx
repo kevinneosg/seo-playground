@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { apiUrl } from '@/lib/api-base';
 
 export default function BalanceBadge() {
   const [balance, setBalance] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/balance')
+    fetch(apiUrl('/api/balance'))
       .then((r) => r.json())
       .then((data: { balance: string | null }) => {
         if (data.balance !== null) setBalance(data.balance);

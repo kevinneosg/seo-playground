@@ -72,11 +72,11 @@ function Bar({ value, max, color }: { value: number; max: number; color: string 
 }
 
 export default async function HistoricalRankPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const creds = getCredentials();
-  const history = getHistRankHistory();
-  const defaultLocation = getSetting('default_location') ?? 'France';
-  const defaultLanguage = getSetting('default_language') ?? 'French';
-  const defaultDomain = getSetting('default_domain') ?? '';
+  const creds = await getCredentials();
+  const history = await getHistRankHistory();
+  const defaultLocation = await getSetting('default_location') ?? 'France';
+  const defaultLanguage = await getSetting('default_language') ?? 'French';
+  const defaultDomain = await getSetting('default_domain') ?? '';
 
   const params = await searchParams;
   const historyId = params.history_id;
@@ -89,7 +89,7 @@ export default async function HistoricalRankPage({ searchParams }: { searchParam
   let cost = 0;
 
   if (historyId) {
-    items = getHistRankResults<HistRankItem>(historyId) ?? [];
+    items = await getHistRankResults<HistRankItem>(historyId) ?? [];
   } else if (target && creds) {
     try {
       const result = await fetchHistRank(target, location, language, creds.login, creds.pass);
@@ -99,7 +99,7 @@ export default async function HistoricalRankPage({ searchParams }: { searchParam
         items = result.items;
         cost = result.cost;
         const id = crypto.randomUUID();
-        saveHistRankSearch({ id, ts: Date.now(), target, location, language, cost }, items);
+        await saveHistRankSearch({ id, ts: Date.now(), target, location, language, cost }, items);
       }
     } catch (e) {
       error = String(e);

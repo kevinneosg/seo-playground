@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic';
+
+import Link from 'next/link';
 import {
   getCredentials, getSetting, getLfHistory, saveLfSearch, getLfResults, type LfHistoryEntry,
 } from '@/lib/db';
@@ -85,13 +88,13 @@ function lfRerunUrl(entry: LfHistoryEntry) {
 }
 
 export default async function LocalFinderPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const creds = getCredentials();
+  const creds = await getCredentials();
   const params = await searchParams;
   const historyId = params.history_id;
 
-  const defaultLocation = getSetting('default_location') ?? 'France';
-  const defaultLanguage = getSetting('default_language') ?? 'English';
-  const defaultCoordinates = getSetting('default_coordinates') ?? '';
+  const defaultLocation = await getSetting('default_location') ?? 'France';
+  const defaultLanguage = await getSetting('default_language') ?? 'English';
+  const defaultCoordinates = await getSetting('default_coordinates') ?? '';
 
   let items: LocalPackItem[] = [];
   let cost: number | undefined;
@@ -101,11 +104,11 @@ export default async function LocalFinderPage({ searchParams }: { searchParams: 
   let activeEntry: LfHistoryEntry | null = null;
 
   if (historyId) {
-    const saved = getLfResults<LocalPackItem>(historyId);
+    const saved = await getLfResults<LocalPackItem>(historyId);
     if (saved) {
       items = saved;
       isFromHistory = true;
-      activeEntry = getLfHistory().find((e) => e.id === historyId) ?? null;
+      activeEntry = (await getLfHistory()).find((e) => e.id === historyId) ?? null;
     } else {
       error = 'Search not found.';
     }
@@ -122,7 +125,7 @@ export default async function LocalFinderPage({ searchParams }: { searchParams: 
       for (let i = 0; i < lfKey.length; i++) { lfHash ^= lfKey.charCodeAt(i); lfHash = Math.imul(lfHash, 0x01000193) >>> 0; }
       const lfId = lfHash.toString(16).padStart(8, '0');
 
-      const lfExisting = getLfResults<LocalPackItem>(lfId);
+      const lfExisting = await getLfResults<LocalPackItem>(lfId);
       if (lfExisting) {
         items = lfExisting;
         isFromHistory = true;
@@ -145,13 +148,13 @@ export default async function LocalFinderPage({ searchParams }: { searchParams: 
               Object.entries(params).filter(([k, v]) => k !== 'history_id' && v !== undefined)
             ) as Record<string, string>,
           };
-          saveLfSearch(entry, items);
+          await saveLfSearch(entry, items);
         }
       }
     }
   }
 
-  const historyIndex = getLfHistory();
+  const historyIndex = await getLfHistory();
   const sourceParams = activeEntry?.params ?? params;
   const formDefaults = {
     keyword: (sourceParams.keyword ?? '').toString(),
@@ -247,16 +250,16 @@ export default async function LocalFinderPage({ searchParams }: { searchParams: 
               const isActive = entry.id === historyId;
               return (
                 <div key={entry.id} className={`flex items-center gap-2 px-6 py-3.5 hover:bg-slate-50 transition-colors ${isActive ? 'bg-blue-50' : ''}`}>
-                  <a href={`/dashboard/local-finder?history_id=${entry.id}#results`} className="flex-1 min-w-0">
+                  <Link href={`/dashboard/local-finder?history_id=${entry.id}#results`} className="flex-1 min-w-0">
                     <p className={`text-sm font-medium truncate ${isActive ? 'text-blue-700' : 'text-slate-800'}`}>{entry.keyword}</p>
                     <p className="text-[11px] text-slate-400 mt-0.5 truncate">
                       {entry.location} · {entry.count} result{entry.count !== 1 ? 's' : ''}
                       {entry.cost !== undefined ? ` · $${entry.cost.toFixed(4)}` : ''}
                     </p>
-                  </a>
+                  </Link>
                   <div className="flex items-center gap-3 shrink-0">
                     <span className="text-[11px] text-slate-400">{formatDate(entry.ts)}</span>
-                    <a href={lfRerunUrl(entry)} className="text-[10px] font-black uppercase tracking-widest text-emerald-600 hover:text-emerald-800 transition-colors" title="Run again">Re-run ↻</a>
+                    <Link href={lfRerunUrl(entry)} className="text-[10px] font-black uppercase tracking-widest text-emerald-600 hover:text-emerald-800 transition-colors" title="Run again">Re-run ↻</Link>
                   </div>
                 </div>
               );

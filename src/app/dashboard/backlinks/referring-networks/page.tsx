@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic';
+
+import Link from 'next/link';
 import { getCredentials, getSetting, getBlRefNetHistory, saveBlRefNet, getBlRefNetResults, type BlRefNetEntry } from '@/lib/db';
 import SearchForm from '@/components/SearchForm';
 import ExportCSVButton from '@/components/ExportCSVButton';
@@ -30,9 +33,9 @@ function fmt(n?: number) { return n != null ? n.toLocaleString('en-GB') : '—';
 function formatDate(ts: number) { return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); }
 
 export default async function ReferringNetworksPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const creds = getCredentials();
+  const creds = await getCredentials();
   const params = await searchParams;
-  const defaultDomain = getSetting('default_domain') ?? '';
+  const defaultDomain = await getSetting('default_domain') ?? '';
   const rawTarget = params.target?.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '') ?? '';
   const historyId = params.history_id;
 
@@ -42,8 +45,8 @@ export default async function ReferringNetworksPage({ searchParams }: { searchPa
   let activeEntry: BlRefNetEntry | null = null;
 
   if (historyId) {
-    const saved = getBlRefNetResults<NetworkItem>(historyId);
-    if (saved) { items = saved; activeEntry = getBlRefNetHistory().find((e) => e.id === historyId) ?? null; }
+    const saved = await getBlRefNetResults<NetworkItem>(historyId);
+    if (saved) { items = saved; activeEntry = (await getBlRefNetHistory()).find((e) => e.id === historyId) ?? null; }
     else error = 'Search no longer available.';
   } else if (rawTarget) {
     if (!creds) { error = 'DataForSEO credentials missing. Configure them in Settings.'; }
@@ -52,12 +55,12 @@ export default async function ReferringNetworksPage({ searchParams }: { searchPa
       items = result.items; cost = result.cost; error = result.error ?? null;
       if (!error && items.length > 0) {
         const entry: BlRefNetEntry = { id: crypto.randomUUID().slice(0, 8), ts: Date.now(), target: rawTarget, count: items.length, cost };
-        saveBlRefNet(entry, items);
+        await saveBlRefNet(entry, items);
       }
     }
   }
 
-  const history = getBlRefNetHistory();
+  const history = await getBlRefNetHistory();
   const displayTarget = activeEntry?.target ?? rawTarget;
   const maxDomains = Math.max(...items.map((i) => i.referring_domains ?? 0), 1);
 
@@ -73,7 +76,7 @@ export default async function ReferringNetworksPage({ searchParams }: { searchPa
     <div className="space-y-6">
       <div>
         <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-400 mb-1">
-          <a href="/dashboard/backlinks" className="hover:text-slate-600 transition-colors">Backlinks</a>
+          <Link href="/dashboard/backlinks" className="hover:text-slate-600 transition-colors">Backlinks</Link>
           <span className="text-slate-200">/</span>
           <span className="text-slate-600">Referring Networks</span>
         </div>
@@ -150,14 +153,14 @@ export default async function ReferringNetworksPage({ searchParams }: { searchPa
             {history.map((entry) => {
               const isActive = entry.id === historyId;
               return (
-                <a key={entry.id} href={`/dashboard/backlinks/referring-networks?history_id=${entry.id}#results`}
+                <Link key={entry.id} href={`/dashboard/backlinks/referring-networks?history_id=${entry.id}#results`}
                   className={`flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${isActive ? 'bg-blue-50 dark:bg-blue-950' : ''}`}>
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm font-medium font-mono truncate ${isActive ? 'text-blue-700 dark:text-blue-400' : 'text-slate-800 dark:text-slate-200'}`}>{entry.target}</p>
                     <p className="text-[11px] text-slate-400 mt-0.5">{entry.count} networks{entry.cost !== undefined ? ` · $${entry.cost.toFixed(4)}` : ''}</p>
                   </div>
                   <span className="shrink-0 text-[11px] text-slate-400">{formatDate(entry.ts)}</span>
-                </a>
+                </Link>
               );
             })}
           </div>

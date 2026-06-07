@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic';
+
+import Link from 'next/link';
 import {
   getCredentials, getSetting,
   getKwDifficultyHistory, saveKwDifficultySearch, getKwDifficultyResults,
@@ -84,12 +87,12 @@ function formatDate(ts: number) {
 }
 
 export default async function KeywordDifficultyPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const creds = getCredentials();
+  const creds = await getCredentials();
   const params = await searchParams;
   const historyId = params.history_id;
 
-  const defaultLocation = getSetting('default_location') ?? 'France';
-  const defaultLanguage = getSetting('default_language') ?? 'French';
+  const defaultLocation = await getSetting('default_location') ?? 'France';
+  const defaultLanguage = await getSetting('default_language') ?? 'French';
 
   const keywords = params.keywords?.trim() ?? '';
   const location = params.location ?? defaultLocation;
@@ -102,11 +105,11 @@ export default async function KeywordDifficultyPage({ searchParams }: { searchPa
   let activeEntry: KwDifficultySearchEntry | null = null;
 
   if (historyId) {
-    const saved = getKwDifficultyResults<DifficultyItem>(historyId);
+    const saved = await getKwDifficultyResults<DifficultyItem>(historyId);
     if (saved) {
       items = saved;
       isFromHistory = true;
-      const history = getKwDifficultyHistory();
+      const history = await getKwDifficultyHistory();
       activeEntry = history.find((e) => e.id === historyId) ?? null;
     } else {
       error = 'Search no longer available.';
@@ -136,12 +139,12 @@ export default async function KeywordDifficultyPage({ searchParams }: { searchPa
           count: items.length,
           cost,
         };
-        saveKwDifficultySearch(entry, items);
+        await saveKwDifficultySearch(entry, items);
       }
     }
   }
 
-  const history = getKwDifficultyHistory();
+  const history = await getKwDifficultyHistory();
   const displayLocation = activeEntry?.location ?? location;
   const displayLanguage = activeEntry?.language ?? language;
 
@@ -254,7 +257,7 @@ export default async function KeywordDifficultyPage({ searchParams }: { searchPa
             {history.map((entry) => {
               const isActive = entry.id === historyId;
               return (
-                <a key={entry.id} href={`/dashboard/keyword-difficulty?history_id=${entry.id}#results`}
+                <Link key={entry.id} href={`/dashboard/keyword-difficulty?history_id=${entry.id}#results`}
                   className={`flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 transition-colors ${isActive ? 'bg-blue-50' : ''}`}>
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm font-medium truncate ${isActive ? 'text-blue-700' : 'text-slate-800'}`}>{entry.keywords}</p>
@@ -265,7 +268,7 @@ export default async function KeywordDifficultyPage({ searchParams }: { searchPa
                     </p>
                   </div>
                   <span className="shrink-0 text-[11px] text-slate-400">{formatDate(entry.ts)}</span>
-                </a>
+                </Link>
               );
             })}
           </div>

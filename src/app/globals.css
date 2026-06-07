@@ -3,19 +3,47 @@
 /* Class-based dark mode */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ─── SBA design tokens ──────────────────────────────────────────────────────
+   Scholar Basketball Academy brand palette + typography.
+   Exposed as Tailwind utilities via @theme (e.g. bg-sba-navy, text-sba-orange).
+   ─────────────────────────────────────────────────────────────────────────── */
+@theme {
+  --color-sba-navy: #1A2E59;     /* primary / dark surfaces */
+  --color-sba-orange: #F15A25;   /* accent / CTA / active   */
+  --color-sba-charcoal: #282828; /* body text               */
+  --color-sba-grey: #B7B7B8;     /* muted / borders         */
+
+  /* Tints used for hover / depth on the navy chrome */
+  --color-sba-navy-700: #16264a;
+  --color-sba-navy-600: #233b6e;
+  --color-sba-navy-500: #2d4a85;
+
+  /* Typography — wired to next/font/local CSS variables */
+  --font-display: var(--font-display); /* LT Energy */
+  --font-body: var(--font-body);       /* Satoshi   */
+  --font-sans: var(--font-body);
+}
+
 /* Smooth scroll */
 html { scroll-behavior: smooth; }
 
-/* Better focus rings */
-:focus-visible {
-  outline: 2px solid rgb(59 130 246);
-  outline-offset: 2px;
-  border-radius: 4px;
+/* Base typography + app surface */
+body {
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  color: var(--color-sba-charcoal);
+  background-color: #f7f8fa; /* light near-white app background */
 }
 
-:root {
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* Display face for headings carries the athletic SBA energy */
+h1, h2, h3, .font-display {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Better focus rings — SBA orange */
+:focus-visible {
+  outline: 2px solid var(--color-sba-orange);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 /* ─── Global dark mode overrides ─────────────────────────────────────────────

@@ -1,20 +1,31 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+// LT Energy — SBA display/heading face (condensed, bold, athletic)
+const ltEnergy = localFont({
+  variable: "--font-display",
+  display: "swap",
+  src: [
+    { path: "../../public/fonts/lt-energy/LTEnergy-NarrowBold.otf", weight: "700", style: "normal" },
+    { path: "../../public/fonts/lt-energy/LTEnergy-WideBold.otf", weight: "800", style: "normal" },
+  ],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+// Satoshi — SBA body/UI face
+const satoshi = localFont({
+  variable: "--font-body",
+  display: "swap",
+  src: [
+    { path: "../../public/fonts/satoshi/Satoshi-Regular.otf", weight: "400", style: "normal" },
+    { path: "../../public/fonts/satoshi/Satoshi-Medium.otf", weight: "500", style: "normal" },
+    { path: "../../public/fonts/satoshi/Satoshi-Bold.otf", weight: "700", style: "normal" },
+  ],
 });
 
 export const metadata: Metadata = {
-  title: "SEO Playground",
-  description: "Local SEO dashboard powered by DataForSEO",
+  title: "Scholar Basketball — SEO Intelligence",
+  description: "SBA SEO dashboard powered by DataForSEO",
 };
 
 export default function RootLayout({
@@ -26,7 +37,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${ltEnergy.variable} ${satoshi.variable} h-full antialiased`}
     >
       <head>
         {/* Anti-FOUC: apply theme before first paint */}

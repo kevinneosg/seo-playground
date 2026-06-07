@@ -1,6 +1,9 @@
 // env.d.ts
-interface CloudflareEnv {
-  dfsui: KVNamespace;
-  DFS_LOGIN: string;
-  DFS_PASSWORD: string;
+declare namespace NodeJS {
+  interface ProcessEnv {
+    /** Postgres connection string (required at runtime; injected by Railway). */
+    DATABASE_URL?: string;
+    /** Set to "disable" to force-disable SSL (e.g. Railway private networking). */
+    PGSSL?: string;
+  }
 }

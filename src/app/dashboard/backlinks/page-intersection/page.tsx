@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic';
+
+import Link from 'next/link';
 import { getCredentials, getBlPageIntHistory, saveBlPageInt, getBlPageIntResults, type BlPageIntEntry } from '@/lib/db';
 import SearchForm from '@/components/SearchForm';
 import ExportCSVButton from '@/components/ExportCSVButton';
@@ -41,7 +44,7 @@ function SpamBadge({ score }: { score?: number }) {
 function formatDate(ts: number) { return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); }
 
 export default async function BacklinksPageIntersectionPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const creds = getCredentials();
+  const creds = await getCredentials();
   const params = await searchParams;
   const rawTargets = params.targets?.trim() ?? '';
   const historyId = params.history_id;
@@ -53,10 +56,10 @@ export default async function BacklinksPageIntersectionPage({ searchParams }: { 
   let activeEntry: BlPageIntEntry | null = null;
 
   if (historyId) {
-    const saved = getBlPageIntResults<PageIntItem>(historyId);
+    const saved = await getBlPageIntResults<PageIntItem>(historyId);
     if (saved) {
       items = saved;
-      activeEntry = getBlPageIntHistory().find((e) => e.id === historyId) ?? null;
+      activeEntry = (await getBlPageIntHistory()).find((e) => e.id === historyId) ?? null;
       targetList = (activeEntry?.targets ?? '').split(', ');
     } else error = 'Search no longer available.';
   } else if (rawTargets) {
@@ -68,12 +71,12 @@ export default async function BacklinksPageIntersectionPage({ searchParams }: { 
       items = result.items; cost = result.cost; error = result.error ?? null;
       if (!error && items.length > 0) {
         const entry: BlPageIntEntry = { id: crypto.randomUUID().slice(0, 8), ts: Date.now(), targets: targetList.join(', '), count: items.length, cost };
-        saveBlPageInt(entry, items);
+        await saveBlPageInt(entry, items);
       }
     }
   }
 
-  const history = getBlPageIntHistory();
+  const history = await getBlPageIntHistory();
 
   const csvData = items.map((item) => ({
     url_from: item.url_from ?? '',
@@ -87,7 +90,7 @@ export default async function BacklinksPageIntersectionPage({ searchParams }: { 
     <div className="space-y-6">
       <div>
         <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-400 mb-1">
-          <a href="/dashboard/backlinks" className="hover:text-slate-600 transition-colors">Backlinks</a>
+          <Link href="/dashboard/backlinks" className="hover:text-slate-600 transition-colors">Backlinks</Link>
           <span className="text-slate-200">/</span>
           <span className="text-slate-600">Page Intersection</span>
         </div>
@@ -156,14 +159,14 @@ export default async function BacklinksPageIntersectionPage({ searchParams }: { 
             {history.map((entry) => {
               const isActive = entry.id === historyId;
               return (
-                <a key={entry.id} href={`/dashboard/backlinks/page-intersection?history_id=${entry.id}#results`}
+                <Link key={entry.id} href={`/dashboard/backlinks/page-intersection?history_id=${entry.id}#results`}
                   className={`flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${isActive ? 'bg-blue-50 dark:bg-blue-950' : ''}`}>
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm font-medium truncate ${isActive ? 'text-blue-700 dark:text-blue-400' : 'text-slate-800 dark:text-slate-200'}`}>{entry.targets}</p>
                     <p className="text-[11px] text-slate-400 mt-0.5">{entry.count} results{entry.cost !== undefined ? ` · $${entry.cost.toFixed(4)}` : ''}</p>
                   </div>
                   <span className="shrink-0 text-[11px] text-slate-400">{formatDate(entry.ts)}</span>
-                </a>
+                </Link>
               );
             })}
           </div>

@@ -80,11 +80,11 @@ function KdBadge({ kd }: { kd: number | undefined }) {
 }
 
 export default async function DomainIntersectionPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const creds = getCredentials();
-  const history = getDomainIntersectionHistory();
-  const defaultLocation = getSetting('default_location') ?? 'France';
-  const defaultLanguage = getSetting('default_language') ?? 'French';
-  const defaultDomain = getSetting('default_domain') ?? '';
+  const creds = await getCredentials();
+  let history = await getDomainIntersectionHistory();
+  const defaultLocation = await getSetting('default_location') ?? 'France';
+  const defaultLanguage = await getSetting('default_language') ?? 'French';
+  const defaultDomain = await getSetting('default_domain') ?? '';
 
   const params = await searchParams;
   const historyId = params.history_id;
@@ -100,7 +100,7 @@ export default async function DomainIntersectionPage({ searchParams }: { searchP
   let cost = 0;
 
   if (historyId) {
-    items = getDomainIntersectionResults<IntersectionItem>(historyId) ?? [];
+    items = await getDomainIntersectionResults<IntersectionItem>(historyId) ?? [];
     const entry = history.find((h) => h.id === historyId);
     total = entry?.totalCount ?? items.length;
   } else if (target1 && target2 && creds) {
@@ -110,10 +110,11 @@ export default async function DomainIntersectionPage({ searchParams }: { searchP
       total = result.total;
       cost = result.cost;
       const id = crypto.randomUUID();
-      saveDomainIntersectionSearch({
+      await saveDomainIntersectionSearch({
         id, ts: Date.now(), target1, target2, location, language,
         count: items.length, totalCount: total, cost,
       }, items);
+      history = await getDomainIntersectionHistory();
     } catch (e) {
       error = String(e);
     }

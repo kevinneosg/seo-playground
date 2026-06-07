@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { getCredentials } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
@@ -15,7 +17,7 @@ export async function GET() {
     return NextResponse.json({ balance: cachedBalance });
   }
 
-  const creds = getCredentials();
+  const creds = await getCredentials();
   if (!creds) return NextResponse.json({ balance: null });
 
   try {

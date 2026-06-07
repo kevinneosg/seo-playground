@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import {
   getCredentials,
   getDomainTechHistory,
@@ -175,7 +176,7 @@ function entryLabel(e: DomainFindEntry) {
 // ---- Page ----
 
 export default async function TechnologiesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const creds = getCredentials();
+  const creds = await getCredentials();
   const params = await searchParams;
 
   const mode = params.mode === 'find' ? 'find' : 'domain';
@@ -203,10 +204,10 @@ export default async function TechnologiesPage({ searchParams }: { searchParams:
 
   if (mode === 'domain') {
     if (historyId) {
-      domainResult = getDomainTechResult<DomainTechResult>(historyId);
+      domainResult = await getDomainTechResult<DomainTechResult>(historyId);
       if (domainResult) {
         isDomainFromHistory = true;
-        const history = getDomainTechHistory();
+        const history = await getDomainTechHistory();
         activeDomainEntry = history.find((e) => e.id === historyId) ?? null;
       } else {
         domainError = "This search is no longer available.";
@@ -223,7 +224,7 @@ export default async function TechnologiesPage({ searchParams }: { searchParams:
           domainResult = res.result;
           domainCost = res.cost;
           const entry: DomainTechEntry = { id: crypto.randomUUID().slice(0, 8), ts: Date.now(), target, cost: domainCost };
-          saveDomainTechSearch(entry, domainResult);
+          await saveDomainTechSearch(entry, domainResult);
         } else {
           domainError = 'No data found for this domain.';
         }
@@ -233,10 +234,10 @@ export default async function TechnologiesPage({ searchParams }: { searchParams:
 
   if (mode === 'find') {
     if (findHistoryId) {
-      findItems = getDomainFindResults<FindDomainItem>(findHistoryId) ?? [];
+      findItems = await getDomainFindResults<FindDomainItem>(findHistoryId) ?? [];
       if (findItems.length > 0) {
         isFindFromHistory = true;
-        const history = getDomainFindHistory();
+        const history = await getDomainFindHistory();
         activeFindEntry = history.find((e) => e.id === findHistoryId) ?? null;
         findTotal = activeFindEntry?.totalCount;
       } else {
@@ -256,15 +257,15 @@ export default async function TechnologiesPage({ searchParams }: { searchParams:
           findCost = res.cost;
           if (findItems.length > 0) {
             const entry: DomainFindEntry = { id: crypto.randomUUID().slice(0, 8), ts: Date.now(), keyword: keyword || undefined, technology: technology || undefined, count: findItems.length, totalCount: findTotal, cost: findCost };
-            saveDomainFindSearch(entry, findItems);
+            await saveDomainFindSearch(entry, findItems);
           }
         }
       }
     }
   }
 
-  const domainHistory = getDomainTechHistory();
-  const findHistory = getDomainFindHistory();
+  const domainHistory = await getDomainTechHistory();
+  const findHistory = await getDomainFindHistory();
   const displayTarget = activeDomainEntry?.target ?? target;
 
   const techCategories = domainResult?.technologies
@@ -288,7 +289,7 @@ export default async function TechnologiesPage({ searchParams }: { searchParams:
           { label: 'Analyze Domain', value: 'domain' },
           { label: 'Find Domains', value: 'find' },
         ] as const).map((tab) => (
-          <a
+          <Link
             key={tab.value}
             href={`/dashboard/domain-analytics/technologies?mode=${tab.value}`}
             className={`px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
@@ -298,7 +299,7 @@ export default async function TechnologiesPage({ searchParams }: { searchParams:
             }`}
           >
             {tab.label}
-          </a>
+          </Link>
         ))}
       </div>
 
@@ -488,14 +489,14 @@ export default async function TechnologiesPage({ searchParams }: { searchParams:
                 {domainHistory.map((entry) => {
                   const isActive = entry.id === historyId;
                   return (
-                    <a key={entry.id} href={`/dashboard/domain-analytics/technologies?mode=domain&history_id=${entry.id}#results`}
+                    <Link key={entry.id} href={`/dashboard/domain-analytics/technologies?mode=domain&history_id=${entry.id}#results`}
                       className={`flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors ${isActive ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
                       <div className="flex-1 min-w-0">
                         <p className={`text-sm font-bold font-mono truncate ${isActive ? 'text-blue-700 dark:text-blue-400' : 'text-slate-800 dark:text-slate-200'}`}>{entry.target}</p>
                         {entry.cost !== undefined && <p className="text-[11px] text-slate-400 mt-0.5">${entry.cost.toFixed(4)}</p>}
                       </div>
                       <span className="shrink-0 text-[11px] text-slate-400">{fmtDate(entry.ts)}</span>
-                    </a>
+                    </Link>
                   );
                 })}
               </div>
@@ -517,7 +518,7 @@ export default async function TechnologiesPage({ searchParams }: { searchParams:
             {activeKw && (
               <div className="flex items-center gap-1.5">
                 <span className="text-xs font-black uppercase tracking-widest text-slate-400">Keyword</span>
-                <span className="px-2 py-0.5 rounded-lg bg-violet-50 border border-violet-100 text-violet-700 text-xs font-bold">"{activeKw}"</span>
+                <span className="px-2 py-0.5 rounded-lg bg-violet-50 border border-violet-100 text-violet-700 text-xs font-bold">&quot;{activeKw}&quot;</span>
               </div>
             )}
             {isFindFromHistory && (
@@ -601,7 +602,7 @@ export default async function TechnologiesPage({ searchParams }: { searchParams:
                 {findHistory.map((entry) => {
                   const isActive = entry.id === findHistoryId;
                   return (
-                    <a key={entry.id} href={`/dashboard/domain-analytics/technologies?mode=find&find_history_id=${entry.id}#results`}
+                    <Link key={entry.id} href={`/dashboard/domain-analytics/technologies?mode=find&find_history_id=${entry.id}#results`}
                       className={`flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors ${isActive ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
                       <div className="flex-1 min-w-0">
                         <p className={`text-sm font-bold truncate ${isActive ? 'text-blue-700 dark:text-blue-400' : 'text-slate-800 dark:text-slate-200'}`}>{entryLabel(entry)}</p>
@@ -612,7 +613,7 @@ export default async function TechnologiesPage({ searchParams }: { searchParams:
                         </p>
                       </div>
                       <span className="shrink-0 text-[11px] text-slate-400">{fmtDate(entry.ts)}</span>
-                    </a>
+                    </Link>
                   );
                 })}
               </div>

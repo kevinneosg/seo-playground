@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import {
   getCredentials,
   getDomainWhoisHistory,
@@ -134,7 +135,7 @@ function daysUntil(dateStr?: string) {
 // ---- Page ----
 
 export default async function WhoisPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const creds = getCredentials();
+  const creds = await getCredentials();
   const params = await searchParams;
   const historyId = params.history_id;
   const domain = cleanTarget(params.domain?.trim() ?? '');
@@ -146,10 +147,10 @@ export default async function WhoisPage({ searchParams }: { searchParams: Promis
   let activeEntry: DomainWhoisEntry | null = null;
 
   if (historyId) {
-    result = getDomainWhoisResult<WhoisResult>(historyId);
+    result = await getDomainWhoisResult<WhoisResult>(historyId);
     if (result) {
       isFromHistory = true;
-      const history = getDomainWhoisHistory();
+      const history = await getDomainWhoisHistory();
       activeEntry = history.find((e) => e.id === historyId) ?? null;
     } else {
       error = "This search is no longer available.";
@@ -173,14 +174,14 @@ export default async function WhoisPage({ searchParams }: { searchParams: Promis
           domain,
           cost,
         };
-        saveDomainWhoisSearch(entry, result);
+        await saveDomainWhoisSearch(entry, result);
       } else {
         error = 'No Whois data found for this domain.';
       }
     }
   }
 
-  const history = getDomainWhoisHistory();
+  const history = await getDomainWhoisHistory();
   const hasQuery = historyId || domain;
   const displayDomain = activeEntry?.domain ?? domain;
 
@@ -225,7 +226,7 @@ export default async function WhoisPage({ searchParams }: { searchParams: Promis
       {hasQuery && !error && result && (
         <>
           {/* Header */}
-          <div className="flex items-center gap-4 flex-wrap">
+          <div id="results" className="flex items-center gap-4 flex-wrap">
             <div className="flex items-center gap-2">
               <span className="text-xs font-black uppercase tracking-widest text-slate-400">Domain</span>
               <span className="font-mono font-bold text-slate-900 dark:text-white">{result.domain ?? displayDomain}</span>
@@ -380,7 +381,7 @@ export default async function WhoisPage({ searchParams }: { searchParams: Promis
             {history.map((entry) => {
               const isActive = entry.id === historyId;
               return (
-                <a
+                <Link
                   key={entry.id}
                   href={`/dashboard/domain-analytics/whois?history_id=${entry.id}#results`}
                   className={`flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors ${isActive ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
@@ -392,7 +393,7 @@ export default async function WhoisPage({ searchParams }: { searchParams: Promis
                     </p>
                   </div>
                   <span className="shrink-0 text-[11px] text-slate-400">{formatDate(entry.ts)}</span>
-                </a>
+                </Link>
               );
             })}
           </div>

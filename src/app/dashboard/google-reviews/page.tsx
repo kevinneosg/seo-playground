@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 
+import Link from 'next/link';
 import {
   getCredentials, getSetting,
   getReviewsTasks, getReviewsTaskResult, getReviewsTaskMeta, updateReviewsTask,
@@ -496,10 +497,10 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function GoogleReviewsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const creds = getCredentials();
+  const creds = await getCredentials();
   const params = await searchParams;
-  const defaultLocation = getSetting('default_location') ?? 'France';
-  const defaultLanguage = getSetting('default_language') ?? 'French';
+  const defaultLocation = await getSetting('default_location') ?? 'France';
+  const defaultLanguage = await getSetting('default_language') ?? 'French';
 
   // Auto-poll: check tasks_ready on every load and fetch ready tasks
   if (creds) {
@@ -515,7 +516,7 @@ export default async function GoogleReviewsPage({ searchParams }: { searchParams
         };
         const readyIds = new Set((readyData?.tasks?.[0]?.result ?? []).map((r) => r.id));
 
-        const pendingTasks = getReviewsTasks().filter((t) => t.status === 'pending');
+        const pendingTasks = (await getReviewsTasks()).filter((t) => t.status === 'pending');
         for (const pt of pendingTasks) {
           if (!readyIds.has(pt.id)) continue;
 
@@ -576,17 +577,17 @@ export default async function GoogleReviewsPage({ searchParams }: { searchParams
             total_count: resultData?.total_count,
           };
 
-          updateReviewsTask(pt.id, 'ready', items, cost, resultCount, meta);
+          await updateReviewsTask(pt.id, 'ready', items, cost, resultCount, meta);
         }
       }
     } catch { /* silently ignore poll errors */ }
   }
 
-  const tasks = getReviewsTasks();
+  const tasks = await getReviewsTasks();
   const activeId = params.id;
   const activeTask = activeId ? tasks.find((t) => t.id === activeId) ?? null : null;
-  const reviews: Review[] = activeTask?.status === 'ready' ? (getReviewsTaskResult<Review>(activeTask.id) ?? []) : [];
-  const meta: BusinessMeta | null = activeTask?.status === 'ready' ? getReviewsTaskMeta<BusinessMeta>(activeTask.id) : null;
+  const reviews: Review[] = activeTask?.status === 'ready' ? (await getReviewsTaskResult<Review>(activeTask.id) ?? []) : [];
+  const meta: BusinessMeta | null = activeTask?.status === 'ready' ? await getReviewsTaskMeta<BusinessMeta>(activeTask.id) : null;
 
   const ratings = reviews.map((r) => r.rating?.value ?? 0).filter((v) => v > 0);
   const avgRating = ratings.length > 0 ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null;
@@ -608,7 +609,7 @@ export default async function GoogleReviewsPage({ searchParams }: { searchParams
       {!creds && (
         <div className="bg-amber-50 border border-amber-100 text-amber-700 text-sm rounded-xl px-4 py-3">
           DataForSEO credentials missing. Configure them in{' '}
-          <a href="/dashboard/settings" className="underline font-semibold">settings</a>.
+          <Link href="/dashboard/settings" className="underline font-semibold">settings</Link>.
         </div>
       )}
 

@@ -60,9 +60,9 @@ async function fetchRefDomains(target: string, limit: number, login: string, pas
 }
 
 export default async function RefDomainsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const creds = getCredentials();
-  const history = getRefDomainsHistory();
-  const defaultDomain = getSetting('default_domain') ?? '';
+  const creds = await getCredentials();
+  const history = await getRefDomainsHistory();
+  const defaultDomain = await getSetting('default_domain') ?? '';
 
   const params = await searchParams;
   const historyId = params.history_id;
@@ -75,7 +75,7 @@ export default async function RefDomainsPage({ searchParams }: { searchParams: P
   let cost = 0;
 
   if (historyId) {
-    items = getRefDomainsResults<RefDomain>(historyId) ?? [];
+    items = await getRefDomainsResults<RefDomain>(historyId) ?? [];
     const entry = history.find((h) => h.id === historyId);
     total = entry?.total ?? items.length;
   } else if (target && creds) {
@@ -88,7 +88,7 @@ export default async function RefDomainsPage({ searchParams }: { searchParams: P
         total = result.total;
         cost = result.cost;
         const id = crypto.randomUUID();
-        saveRefDomainsSearch({ id, ts: Date.now(), target, cost, total }, items);
+        await saveRefDomainsSearch({ id, ts: Date.now(), target, cost, total }, items);
       }
     } catch (e) {
       error = String(e);
