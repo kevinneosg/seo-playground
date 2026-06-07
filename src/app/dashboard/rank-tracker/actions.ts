@@ -81,7 +81,10 @@ async function enqueueRankChecks(
   keywords: Array<{ id: number; keyword: string; domain: string; location: string; language: string }>,
 ) {
   const creds = await getCredentials();
-  if (!creds || keywords.length === 0) return;
+  if (!creds || keywords.length === 0) {
+    console.warn('[rank-enqueue] aborted: creds?', !!creds, 'keywords', keywords.length);
+    return;
+  }
 
   const depth = parseInt(await getSetting('rank_tracker_depth') ?? '100', 10);
   const auth = btoa(`${creds.login}:${creds.pass}`);
@@ -107,13 +110,18 @@ async function enqueueRankChecks(
         ),
         signal: AbortSignal.timeout(30_000),
       });
-    } catch {
+    } catch (e) {
+      const err = e as Error & { cause?: { code?: string } };
+      console.error('[rank-enqueue] task_post fetch failed:', err?.name, err?.message, err?.cause?.code);
       continue;
     }
-    if (!res.ok) continue;
+    if (!res.ok) {
+      console.warn('[rank-enqueue] task_post non-OK:', res.status, res.statusText);
+      continue;
+    }
 
     const data = await res.json() as {
-      tasks?: Array<{ id?: string; status_code?: number }>;
+      tasks?: Array<{ id?: string; status_code?: number; status_message?: string }>;
     };
 
     const toAdd: Array<{ task_id: string; keyword_id: number; domain: string }> = [];
@@ -123,6 +131,9 @@ async function enqueueRankChecks(
       if (task?.status_code === 20100 && task.id) {
         toAdd.push({ task_id: task.id, keyword_id: kw.id, domain: kw.domain });
       }
+    }
+    if (toAdd.length < batch.length) {
+      console.warn('[rank-enqueue] accepted', toAdd.length, 'of', batch.length, '— first task:', data.tasks?.[0]?.status_code, data.tasks?.[0]?.status_message);
     }
     await addRankCheckTasks(toAdd);
   }
